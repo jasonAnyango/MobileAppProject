@@ -1,0 +1,79 @@
+# =========================================
+# Android / Kotlin / Gradle project
+# =========================================
+
+# Gradle build output
+.gradle/
+build/
+*/build/
+
+# Local configuration (contains SDK path)
+local.properties
+
+# IntelliJ / Android Studio project files
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Log files
+*.log
+
+# Keystore files (security-sensitive)
+*.jks
+*.keystore
+
+# Captures and profiling data
+captures/
+*.hprof
+
+# NDK / CMake / Native build outputs
+.cxx/
+.externalNativeBuild/
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Jetpack Compose compiler cache
+compose-cache/
+
+# Generated JSON build outputs
+output.json
+
+# Gradle caches and lock files
+.gradle/
+gradle-app.setting
+
+# Android Studio specific
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+
+# =========================================
+# Gradle Wrapper
+# =========================================
+# Keep gradlew and gradlew.bat for portability
+!gradlew
+!gradlew.bat
+!gradle/wrapper/gradle-wrapper.properties
+!gradle/wrapper/gradle-wrapper.jar
+
+# =========================================
+# Firebase / Secrets (if applicable)
+# =========================================
+google-services.json
+GoogleService-Info.plist
+*.env
+.env.*
+
+# =========================================
+# Misc
+# =========================================
+# If using version catalogs (keep the TOML file)
+# Do not ignore libs.versions.toml
+# Only ignore its generated cache
+.gradle/7.*/dependencies-accessors/

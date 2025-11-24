@@ -1,6 +1,7 @@
 package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -15,13 +16,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
+import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 
 @Composable
-fun ClubLeaderDashboardScreen() {
+fun ClubLeaderDashboardScreen(
+    navController: NavHostController
+) {
 
     Scaffold(
-        bottomBar = { ClubLeaderBottomNavigation() }
+        bottomBar = { ClubLeaderBottomNavigation(navController) }
     ) { innerPadding ->
 
         Column(
@@ -83,32 +89,30 @@ fun ClubLeaderDashboardScreen() {
             Spacer(modifier = Modifier.height(28.dp))
 
             // ------------------ MANAGEMENT SECTION ------------------
-            Text(
-                text = "Manage Club",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
             Spacer(modifier = Modifier.height(12.dp))
 
             ManagementListItem(
                 title = "Manage Members",
-                icon = Icons.Default.Group
+                icon = Icons.Default.Group,
+                onClick = { navController.navigate(ClubLeaderScreen.Members.route) }
             )
 
             ManagementListItem(
                 title = "Create Event",
-                icon = Icons.Default.AddCircle
+                icon = Icons.Default.AddCircle,
+                onClick = { navController.navigate(ClubLeaderScreen.AddEvent.route) }
             )
 
             ManagementListItem(
                 title = "Edit Club Info",
-                icon = Icons.Default.Edit
+                icon = Icons.Default.Edit,
+                onClick = { navController.navigate(ClubLeaderScreen.ManageClub.route) }
             )
 
             ManagementListItem(
                 title = "Club Announcements",
-                icon = Icons.Default.Notifications
+                icon = Icons.Default.Notifications,
+                onClick = { navController.navigate(ClubLeaderScreen.Announcements.route) }
             )
         }
     }
@@ -133,11 +137,12 @@ fun DashboardCard(title: String, value: String, modifier: Modifier = Modifier) {
 
 
 @Composable
-fun ManagementListItem(title: String, icon: ImageVector) {
+fun ManagementListItem(title: String, icon: ImageVector, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
+            .clickable { onClick() } // make card clickable
     ) {
         Row(
             modifier = Modifier
@@ -151,34 +156,38 @@ fun ManagementListItem(title: String, icon: ImageVector) {
 }
 
 @Composable
-fun ClubLeaderBottomNavigation() {
+fun ClubLeaderBottomNavigation(navController: NavHostController) {
+
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
     NavigationBar {
         NavigationBarItem(
-            selected = true,
-            onClick = {},
+            selected = currentRoute == ClubLeaderScreen.Dashboard.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Dashboard.route) },
             icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
             label = { Text("Dashboard") }
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = {},
+            selected = currentRoute == ClubLeaderScreen.Events.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Events.route) },
             icon = { Icon(Icons.Default.Event, contentDescription = null) },
             label = { Text("Events") }
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = {},
+            selected = currentRoute == ClubLeaderScreen.Members.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Members.route) },
             icon = { Icon(Icons.Default.Group, contentDescription = null) },
             label = { Text("Members") }
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = {},
+            selected = currentRoute == ClubLeaderScreen.Announcements.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Announcements.route) },
             icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
             label = { Text("Announce") }
         )
     }
 }
+

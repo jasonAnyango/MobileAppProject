@@ -19,10 +19,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
+import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 
 @Composable
-fun AddEventScreen() {
+fun AddEventScreen(
+    navController: NavHostController,
+    onPublish: () -> Unit = {}
+) {
 
     var eventTitle by remember { mutableStateOf("") }
     var eventDateTime by remember { mutableStateOf("") }
@@ -30,7 +36,7 @@ fun AddEventScreen() {
     var description by remember { mutableStateOf("") }
 
     Scaffold(
-        bottomBar = { AddEventBottomNav() }
+        bottomBar = { AddEventBottomNav(navController) }
     ) { padding ->
 
         Column(
@@ -39,8 +45,7 @@ fun AddEventScreen() {
                 .padding(padding)
                 .padding(16.dp)
         ) {
-
-            // ------------------ PAGE TITLE ------------------
+            // Page title
             Text(
                 text = "Add Event",
                 style = MaterialTheme.typography.headlineMedium,
@@ -49,13 +54,12 @@ fun AddEventScreen() {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ------------------ INPUT FIELDS ------------------
+            // Input fields
             StyledTextField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
                 label = "Event Title"
             )
-
             Spacer(modifier = Modifier.height(16.dp))
 
             StyledTextField(
@@ -63,7 +67,6 @@ fun AddEventScreen() {
                 onValueChange = { eventDateTime = it },
                 label = "Date and Time"
             )
-
             Spacer(modifier = Modifier.height(16.dp))
 
             StyledTextField(
@@ -71,7 +74,6 @@ fun AddEventScreen() {
                 onValueChange = { location = it },
                 label = "Location"
             )
-
             Spacer(modifier = Modifier.height(16.dp))
 
             StyledTextField(
@@ -80,10 +82,9 @@ fun AddEventScreen() {
                 label = "Description",
                 isLarge = true
             )
-
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ------------------ OPTIONAL POSTER ------------------
+            // Optional poster
             Image(
                 painter = painterResource(id = R.drawable.tennis_club),
                 contentDescription = "Event Poster",
@@ -107,9 +108,11 @@ fun AddEventScreen() {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ------------------ ADD EVENT BUTTON ------------------
+            // Add Event button
             Button(
-                onClick = { /* TODO: Add event logic */ },
+                onClick = { /* TODO: save event data here*/
+                    onPublish()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.Black
@@ -124,36 +127,40 @@ fun AddEventScreen() {
     }
 }
 
+
 @Composable
-fun AddEventBottomNav() {
+fun AddEventBottomNav(navController: NavHostController) {
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
     NavigationBar {
         NavigationBarItem(
-            selected = false,
-            onClick = { /* Dashboard */ },
+            selected = currentRoute == ClubLeaderScreen.Dashboard.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Dashboard.route) },
             icon = { Icon(Icons.Default.Home, contentDescription = null) },
             label = { Text("Dashboard") }
         )
 
         NavigationBarItem(
-            selected = true, // Events active
-            onClick = { /* Events */ },
+            selected = currentRoute == ClubLeaderScreen.Events.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Events.route) },
             icon = { Icon(Icons.Default.Event, contentDescription = null) },
             label = { Text("Events") }
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = { /* Members */ },
+            selected = currentRoute == ClubLeaderScreen.Members.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Members.route) },
             icon = { Icon(Icons.Default.Group, contentDescription = null) },
             label = { Text("Members") }
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = { /* Announce */ },
+            selected = currentRoute == ClubLeaderScreen.Announcements.route,
+            onClick = { navController.navigate(ClubLeaderScreen.Announcements.route) },
             icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
             label = { Text("Announce") }
         )
     }
 }
+
 

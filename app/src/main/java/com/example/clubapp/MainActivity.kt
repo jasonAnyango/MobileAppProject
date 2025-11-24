@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.navigation.compose.rememberNavController
 import com.example.clubapp.clubleader.ui.AddAnnouncementScreen
 import com.example.clubapp.clubleader.ui.AddEventScreen
 import com.example.clubapp.clubleader.ui.AnnouncementsScreen
@@ -11,6 +12,7 @@ import com.example.clubapp.clubleader.ui.EventsScreen
 import com.example.clubapp.clubleader.ui.ManageClubScreen
 import com.example.clubapp.clubleader.ui.MembersScreen
 import com.example.clubapp.ui.theme.ClubAppTheme
+import com.example.clubapp.clubleader.navigation.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,7 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ClubAppTheme {
-                AddAnnouncementScreen()
+                ClubLeaderNavGraph()
             }
         }
     }

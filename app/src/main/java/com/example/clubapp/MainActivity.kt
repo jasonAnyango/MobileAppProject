@@ -4,13 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.clubapp.clubleader.ui.AddAnnouncementScreen
+import com.example.clubapp.clubleader.ui.AddEventScreen
+import com.example.clubapp.clubleader.ui.AnnouncementsScreen
+import com.example.clubapp.clubleader.ui.EventsScreen
+import com.example.clubapp.clubleader.ui.ManageClubScreen
+import com.example.clubapp.clubleader.ui.MembersScreen
 import com.example.clubapp.ui.theme.ClubAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,29 +18,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ClubAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                AddAnnouncementScreen()
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ClubAppTheme {
-        Greeting("Android")
     }
 }

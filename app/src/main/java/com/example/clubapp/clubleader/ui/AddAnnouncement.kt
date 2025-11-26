@@ -1,6 +1,10 @@
 package com.example.clubapp.clubleader.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
@@ -9,6 +13,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,9 +32,19 @@ fun AddAnnouncementScreen(
     Scaffold(
         bottomBar = { AddAnnouncementBottomNav(navController) }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0D47A1),
+                            Color(0xFF42A5F5)
+                        )
+                    )
+                )
+                .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(16.dp)
         ) {
@@ -38,7 +53,8 @@ fun AddAnnouncementScreen(
             Text(
                 text = "New Announcement",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -78,6 +94,38 @@ fun AddAnnouncementScreen(
         }
     }
 }
+
+@Composable
+fun StyledTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isLarge: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = Color.Black) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (isLarge) 150.dp else 55.dp)
+            .background(
+                color = Color.White.copy(alpha = 0.9f),
+                shape = RoundedCornerShape(10.dp)
+            ),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black,
+            cursorColor = Color.Black,
+            focusedContainerColor = Color.White.copy(alpha = 0.9f),
+            unfocusedContainerColor = Color.White.copy(alpha = 0.9f),
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent
+        ),
+        maxLines = if (isLarge) 5 else 1
+    )
+}
+
 
 @Composable
 fun AddAnnouncementBottomNav(navController: NavHostController) {

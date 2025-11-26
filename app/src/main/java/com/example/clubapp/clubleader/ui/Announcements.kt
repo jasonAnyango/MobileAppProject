@@ -1,5 +1,6 @@
 package com.example.clubapp.clubleader.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,14 @@ fun AnnouncementsScreen(navController: NavHostController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0D47A1),
+                            Color(0xFF42A5F5)
+                        )
+                    )
+                )
                 .padding(padding)
                 .padding(16.dp)
         ) {
@@ -47,7 +57,8 @@ fun AnnouncementsScreen(navController: NavHostController) {
             Text(
                 text = "Announcements",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -72,7 +83,8 @@ fun AnnouncementsScreen(navController: NavHostController) {
             Text(
                 text = "Past Announcements",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -94,7 +106,10 @@ fun AnnouncementItem(announcement: Announcement) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight()
+            .wrapContentHeight(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.92f)
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

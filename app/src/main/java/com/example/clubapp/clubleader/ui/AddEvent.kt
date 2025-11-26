@@ -1,8 +1,12 @@
 package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Event
@@ -14,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -29,7 +34,6 @@ fun AddEventScreen(
     navController: NavHostController,
     onPublish: () -> Unit = {}
 ) {
-
     var eventTitle by remember { mutableStateOf("") }
     var eventDateTime by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
@@ -38,23 +42,33 @@ fun AddEventScreen(
     Scaffold(
         bottomBar = { AddEventBottomNav(navController) }
     ) { padding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0D47A1),
+                            Color(0xFF42A5F5)
+                        )
+                    )
+                )
+                .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Page title
+
+            // ------------------ PAGE TITLE ------------------
             Text(
                 text = "Add Event",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Input fields
+            // ------------------ INPUT FIELDS ------------------
             StyledTextField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
@@ -84,13 +98,13 @@ fun AddEventScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Optional poster
+            // ------------------ EVENT POSTER ------------------
             Image(
                 painter = painterResource(id = R.drawable.tennis_club),
                 contentDescription = "Event Poster",
                 modifier = Modifier
                     .size(120.dp)
-                    .clip(MaterialTheme.shapes.medium)
+                    .clip(RoundedCornerShape(12.dp))
                     .align(Alignment.CenterHorizontally),
                 contentScale = ContentScale.Crop
             )
@@ -108,11 +122,9 @@ fun AddEventScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Add Event button
+            // ------------------ PUBLISH EVENT BUTTON ------------------
             Button(
-                onClick = { /* TODO: save event data here*/
-                    onPublish()
-                },
+                onClick = { onPublish() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.Black
@@ -162,5 +174,3 @@ fun AddEventBottomNav(navController: NavHostController) {
         )
     }
 }
-
-

@@ -119,29 +119,6 @@ fun ManageClubScreen(navController: NavHostController) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun StyledTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    isLarge: Boolean = false
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (isLarge) 160.dp else 60.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color(0xFF81C784),   // green
-            unfocusedBorderColor = Color(0xFFB2DFDB), // light green
-            cursorColor = Color(0xFF4CAF50)
-        ),
-        maxLines = if (isLarge) 6 else 1
-    )
-}
 
 @Composable
 fun ManageClubBottomNav(navController: NavHostController) {

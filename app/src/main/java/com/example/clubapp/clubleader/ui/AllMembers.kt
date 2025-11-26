@@ -1,6 +1,7 @@
 package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +30,7 @@ data class Member(val name: String, val role: String, val profileRes: Int)
 
 @Composable
 fun MembersScreen(navController: NavHostController) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = All Members, 1 = Pending Requests
+    var selectedTab by remember { mutableStateOf(0) }
 
     val allMembers = listOf(
         Member("Martin Njenga", "Men's Captain", R.drawable.profile),
@@ -46,16 +48,27 @@ fun MembersScreen(navController: NavHostController) {
     Scaffold(
         bottomBar = { MembersBottomNav(navController) }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0D47A1),
+                            Color(0xFF42A5F5)
+                        )
+                    )
+                )
                 .padding(padding)
                 .padding(16.dp)
         ) {
+
             Text(
                 text = "Members",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -69,26 +82,24 @@ fun MembersScreen(navController: NavHostController) {
                     title = "All Members",
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    activeColor = Color.Black,
-                    inactiveColor = Color(0xFF4CAF50)
+                    activeColor = Color.White,
+                    inactiveColor = Color(0xFFB3E5FC)
                 )
                 TabButton(
                     title = "Pending Requests",
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    activeColor = Color.Black,
-                    inactiveColor = Color(0xFF4CAF50)
+                    activeColor = Color.White,
+                    inactiveColor = Color(0xFFB3E5FC)
                 )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ------------------- MEMBERS LIST -------------------
             val membersToShow = if (selectedTab == 0) allMembers else pendingMembers
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            // Scrollable list
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(membersToShow) { member ->
                     MemberListItem(member)
                 }
@@ -99,28 +110,33 @@ fun MembersScreen(navController: NavHostController) {
 
 @Composable
 fun MemberListItem(member: Member) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(12.dp)
-    ) {
-        Image(
-            painter = painterResource(id = member.profileRes),
-            contentDescription = "Profile",
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.9f)
         )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(12.dp)
+        ) {
+            Image(
+                painter = painterResource(id = member.profileRes),
+                contentDescription = "Profile",
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+            )
 
-        Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
-        Column {
-            Text(member.name, fontWeight = FontWeight.Bold)
-            Text(member.role, color = Color.Gray)
+            Column {
+                Text(member.name, fontWeight = FontWeight.Bold)
+                Text(member.role, color = Color.Gray)
+            }
         }
     }
-    Divider()
 }
 
 @Composable
@@ -163,8 +179,8 @@ fun TabButton(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
-    activeColor: Color = Color.Black,
-    inactiveColor: Color = Color.Green
+    activeColor: Color = Color.White,
+    inactiveColor: Color = Color.LightGray
 ) {
     TextButton(onClick = onClick) {
         Text(

@@ -11,11 +11,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.clubapp.admin.data.MockAdminRepository
 
-// --- 1. Club Management Parent Screen (Tabs) ---
+// --- 1. Club Management Parent Screen (Tabs + Search + Filter) ---
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClubManagementScreen(
     onClubClick: (String) -> Unit,
@@ -24,8 +26,65 @@ fun ClubManagementScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("All Clubs", "Applications")
 
-    // Removed internal Scaffold to avoid double headers (handled by AdminNavGraph)
+    // State for Search and Filters
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("All") }
+
+    // Reset filters when switching tabs
+    LaunchedEffect(selectedTab) {
+        searchQuery = ""
+        selectedFilter = "All"
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+
+        // --- Search Bar ---
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            placeholder = { Text("Search by name...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    }
+                }
+            },
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium
+        )
+
+        // --- Filter Chips ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // dynamic filters based on tab
+            val filters = if (selectedTab == 0) {
+                listOf("All", "Active", "Inactive")
+            } else {
+                listOf("All", "Pending") // Add "Rejected"/"Approved" here if you update your Repo to return them
+            }
+
+            filters.forEach { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    label = { Text(filter) },
+                    leadingIcon = if (selectedFilter == filter) {
+                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null
+                )
+            }
+        }
+
+        // --- Tabs ---
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -36,46 +95,90 @@ fun ClubManagementScreen(
             }
         }
 
-        // Display content based on tab
+        // --- Content ---
         when (selectedTab) {
-            0 -> AllClubsList(onClubClick)
-            1 -> ClubApplicationsList(onApplicationClick)
+            0 -> AllClubsList(
+                onClubClick = onClubClick,
+                searchQuery = searchQuery,
+                filterStatus = selectedFilter
+            )
+            1 -> ClubApplicationsList(
+                onApplicationClick = onApplicationClick,
+                searchQuery = searchQuery,
+                filterStatus = selectedFilter
+            )
         }
     }
 }
 
 // --- Sub-component: All Clubs List ---
 @Composable
-fun AllClubsList(onClubClick: (String) -> Unit) {
-    // FETCH DATA FROM MOCK REPO
-    val clubs = remember { MockAdminRepository.getAllClubs() }
+fun AllClubsList(
+    onClubClick: (String) -> Unit,
+    searchQuery: String,
+    filterStatus: String
+) {
+    val allClubs = remember { MockAdminRepository.getAllClubs() }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(clubs) { club ->
-            ListItem(
-                headlineContent = { Text(club.name, fontWeight = FontWeight.SemiBold) },
-                supportingContent = { Text(if(club.isActive) "Active • ${club.memberCount} members" else "Inactive") },
-                trailingContent = { Icon(Icons.Default.ChevronRight, null) },
-                modifier = Modifier.clickable { onClubClick(club.name) }
-            )
-            Divider()
+    // Filter Logic
+    val filteredClubs = allClubs.filter { club ->
+        val matchesSearch = club.name.contains(searchQuery, ignoreCase = true)
+        val matchesFilter = when (filterStatus) {
+            "Active" -> club.isActive
+            "Inactive" -> !club.isActive
+            else -> true
+        }
+        matchesSearch && matchesFilter
+    }
+
+    if (filteredClubs.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No clubs found matching '$searchQuery'", color = MaterialTheme.colorScheme.outline)
+        }
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(filteredClubs) { club ->
+                ListItem(
+                    headlineContent = { Text(club.name, fontWeight = FontWeight.SemiBold) },
+                    supportingContent = {
+                        val status = if(club.isActive) "Active" else "Inactive"
+                        Text("$status • ${club.memberCount} members")
+                    },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                    modifier = Modifier.clickable { onClubClick(club.id) }
+                )
+                Divider()
+            }
         }
     }
 }
 
 // --- Sub-component: Applications List ---
 @Composable
-fun ClubApplicationsList(onApplicationClick: (String) -> Unit) {
-    // FETCH DATA FROM MOCK REPO
-    val applications = remember { MockAdminRepository.getPendingApplications() }
+fun ClubApplicationsList(
+    onApplicationClick: (String) -> Unit,
+    searchQuery: String,
+    filterStatus: String
+) {
+    val allApplications = remember { MockAdminRepository.getPendingApplications() }
 
-    if (applications.isEmpty()) {
+    // Filter Logic
+    val filteredApps = allApplications.filter { app ->
+        val matchesSearch = app.clubName.contains(searchQuery, ignoreCase = true)
+        val matchesFilter = when (filterStatus) {
+            "Pending" -> app.status == "Pending"
+            else -> true
+        }
+        matchesSearch && matchesFilter
+    }
+
+    if (filteredApps.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No pending applications", style = MaterialTheme.typography.bodyLarge)
+            Text("No applications found", color = MaterialTheme.colorScheme.outline)
         }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(applications) { app ->
+            items(filteredApps) { app ->
                 ListItem(
                     headlineContent = { Text(app.clubName, fontWeight = FontWeight.SemiBold) },
                     supportingContent = { Text("Applicant: ${app.applicantName}") },
@@ -84,7 +187,7 @@ fun ClubApplicationsList(onApplicationClick: (String) -> Unit) {
                             Text("Pending", modifier = Modifier.padding(4.dp), color = MaterialTheme.colorScheme.onTertiaryContainer)
                         }
                     },
-                    modifier = Modifier.clickable { onApplicationClick(app.clubName) }
+                    modifier = Modifier.clickable { onApplicationClick(app.id) }
                 )
                 Divider()
             }
@@ -92,10 +195,9 @@ fun ClubApplicationsList(onApplicationClick: (String) -> Unit) {
     }
 }
 
-
 // Helpers
 @Composable
-fun ActionButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+fun ActionButton(text: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

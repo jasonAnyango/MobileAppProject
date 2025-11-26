@@ -85,7 +85,8 @@ fun AdminNavGraph() {
                 currentRoute = currentRoute,
                 onNavigate = { route ->
                     navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
+                        // Pop up to the dashboard route to avoid building up a large stack
+                        popUpTo(AdminScreen.Dashboard.route) {
                             saveState = true
                         }
                         launchSingleTop = true

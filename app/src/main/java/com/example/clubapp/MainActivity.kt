@@ -3,24 +3,24 @@ package com.example.clubapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.navigation.compose.rememberNavController
-import com.example.clubapp.clubleader.ui.AddAnnouncementScreen
-import com.example.clubapp.clubleader.ui.AddEventScreen
-import com.example.clubapp.clubleader.ui.AnnouncementsScreen
-import com.example.clubapp.clubleader.ui.EventsScreen
-import com.example.clubapp.clubleader.ui.ManageClubScreen
-import com.example.clubapp.clubleader.ui.MembersScreen
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import com.example.clubapp.ui.navigation.AppNavGraph
 import com.example.clubapp.ui.theme.ClubAppTheme
-import com.example.clubapp.clubleader.navigation.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             ClubAppTheme {
-                ClubLeaderNavGraph()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AppNavGraph()
+                }
             }
         }
     }

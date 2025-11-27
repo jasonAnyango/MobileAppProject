@@ -1,7 +1,5 @@
 package com.example.clubapp.clubleader.ui
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,16 +9,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 import com.example.clubapp.clubleader.viewmodel.AddEventViewModel
 import com.example.clubapp.clubleader.viewmodel.AddEventViewModelFactory
-import com.google.firebase.firestore.FirebaseFirestore // Import Firestore
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun AddEventScreen(
@@ -28,7 +26,6 @@ fun AddEventScreen(
 ) {
     val firestore = remember { FirebaseFirestore.getInstance() }
 
-    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
         AddEventViewModelFactory(db = firestore)
     }
@@ -47,6 +44,7 @@ fun AddEventScreen(
         if (uiState.saveSuccess) {
             // Navigate back to the Events list and pop this screen
             navController.navigate(ClubLeaderScreen.Events.route) {
+                // Ensure AddEvent screen is removed from the back stack
                 popUpTo(ClubLeaderScreen.Events.route) { inclusive = true }
                 launchSingleTop = true
             }
@@ -62,124 +60,166 @@ fun AddEventScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
 
             // ------------------ PAGE TITLE ------------------
             Text(
-                text = "Add Event for ${uiState.clubName}", // Uses dynamic club name
-                style = MaterialTheme.typography.headlineMedium,
+                text = "Create Event",
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+            Text(
+                text = "for ${uiState.clubName}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Error Message Display
             uiState.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Check if club data is available to enable the form
             val isFormEnabled = uiState.clubId.isNotEmpty() && !uiState.isSaving
 
-            if (!isFormEnabled && uiState.clubId.isEmpty()) {
+            if (!isFormEnabled && uiState.clubId.isEmpty() && !uiState.isSaving) {
                 Text(
-                    "Error: Your leader account is not linked to a club. Cannot create events.",
+                    "Error: Your leader account is not linked to a club. Please contact support.",
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                if (uiState.isSaving) CircularProgressIndicator()
             }
 
             // ------------------ INPUT FIELDS ------------------
-            BasicTextField(
+
+            // Event Title
+            InputField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
-                label = "Event Title",
+                label = "Event Title (Required)", // <-- FIXED: Simple String
+                icon = Icons.Default.NewLabel,
                 enabled = isFormEnabled
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            BasicTextField(
+            // Date & Time
+            InputField(
                 value = eventDateTime,
                 onValueChange = { eventDateTime = it },
-                label = "Date (YYYY-MM-DD)", // Encouraging a sortable format
+                label = "Date and Time (YYYY-MM-DD)", // <-- FIXED: Simple String
+                icon = Icons.Default.Schedule,
                 enabled = isFormEnabled
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            // NOTE: In a real app, this should be replaced by a Date/Time Picker component.
+            Text(
+                "Format: YYYY-MM-DD. Time can be added manually after the date if needed.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
 
-            BasicTextField(
+            // Location
+            InputField(
                 value = location,
                 onValueChange = { location = it },
-                label = "Location",
+                label = "Location / Venue", // <-- FIXED: Simple String
+                icon = Icons.Default.LocationOn,
                 enabled = isFormEnabled
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            BasicTextField(
+            // Description
+            InputField(
                 value = description,
                 onValueChange = { description = it },
-                label = "Description",
-                minLines = 4,
+                label = "Detailed Description", // <-- FIXED: Simple String
+                icon = Icons.Default.Description,
+                minLines = 6, // Larger input area for description
                 enabled = isFormEnabled
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // ------------------ PUBLISH EVENT BUTTON ------------------
             Button(
                 onClick = {
                     viewModel.saveEvent(eventTitle, eventDateTime, location, description)
                 },
-                enabled = isFormEnabled, // Disable if saving or clubId is missing
+                // Ensure required fields are not empty before enabling
+                enabled = isFormEnabled && eventTitle.isNotBlank() && eventDateTime.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(56.dp)
             ) {
                 if (uiState.isSaving) {
                     CircularProgressIndicator(
                         color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 } else {
-                    Text("Add Event", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Publish, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Publish Event", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
     }
 }
 
-// Custom Composable to mimic the behavior of a labeled text field without custom styling
+// --- UPDATED REUSABLE COMPOSABLES ---
+
 @Composable
-fun BasicTextField(
+fun InputField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String, // <-- FIXED: Changed to simple String
+    icon: ImageVector,
     minLines: Int = 1,
-    enabled: Boolean = true // Added enabled parameter
+    enabled: Boolean = true
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = { Text(label) }, // <-- Now passes the String variable to Text
+        leadingIcon = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         modifier = Modifier.fillMaxWidth(),
         minLines = minLines,
+        singleLine = minLines == 1,
         enabled = enabled,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
         )
     )
 }
 
+
 @Composable
 fun AddEventBottomNav(navController: NavHostController) {
-    // Re-using the NavBar is usually fine, but ensure the current route logic is sound if navigating off-path
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     NavigationBar {

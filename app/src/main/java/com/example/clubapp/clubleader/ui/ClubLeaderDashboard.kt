@@ -1,10 +1,12 @@
 package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,6 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -57,7 +61,7 @@ fun ClubLeaderDashboardScreen(
         val managementItems = listOf(
             Triple("Manage Members", Icons.Default.Group, MaterialTheme.colorScheme.primary),
             Triple("Create Event", Icons.Default.AddCircle, MaterialTheme.colorScheme.secondary),
-            Triple("Edit Club Info", Icons.Default.Edit, Color(0xFF10B981)),
+            Triple("Edit Club Info", Icons.Default.Edit, Color(0xFF10B981)), // Use a distinct color
             Triple("Club Announcements", Icons.Default.Notifications, MaterialTheme.colorScheme.tertiary)
         )
 
@@ -100,48 +104,9 @@ fun ClubLeaderDashboardScreen(
             } else {
                 // --- Successful Data Display ---
 
-                // CLUB IMAGE & NAME
+                // 💡 NEW HEADER CARD WITH BACKGROUND IMAGE
                 item {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.club_default),
-                            contentDescription = "Club Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(100.dp)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            // DYNAMIC CLUB NAME
-                            text = uiState.clubName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.W600,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                }
-
-                // DASHBOARD CARDS
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        DashboardCard(
-                            title = "Members",
-                            // DYNAMIC MEMBER COUNT
-                            value = uiState.memberCount.toString(),
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardCard(
-                            title = "Events",
-                            // DYNAMIC EVENT COUNT
-                            value = uiState.eventCount.toString(),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    ClubHeaderCard(uiState = uiState)
                 }
 
                 // MANAGEMENT TITLE
@@ -176,25 +141,135 @@ fun ClubLeaderDashboardScreen(
 }
 
 
-// --- SUPPORTING COMPOSABLES (Unchanged) ---
+// --- NEW COMPOSABLES ---
+
 @Composable
-fun DashboardCard(title: String, value: String, modifier: Modifier = Modifier) {
+fun ClubHeaderCard(uiState: com.example.clubapp.clubleader.viewmodel.ClubDashboardUiState) {
     Card(
-        modifier = modifier.height(110.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp), // Fixed height for visual impact
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), // Base color
+        elevation = CardDefaults.cardElevation(4.dp),
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+
+            // 1. Background Image (Subtle and Blended)
+            Image(
+                painter = painterResource(id = R.drawable.club_default), // Placeholder for the actual logo/image URL
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = 0.2f, // Subtle opacity
+                modifier = Modifier.matchParentSize()
+            )
+
+            // 2. Gradient Overlay for Readability (Fading to the base color)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), // Start semi-transparent
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)  // End more solid
+                            )
+                        )
+                    )
+            )
+
+            // 3. Foreground Content (Name and Counts)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Club Name and Logo at Top
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Defined Logo
+                    Image(
+                        painter = painterResource(id = R.drawable.club_default),
+                        contentDescription = "Club Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = uiState.clubName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Dashboard Cards (Placed at the bottom of the Card)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    DashboardInfoPill(
+                        title = "Members",
+                        value = uiState.memberCount.toString(),
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Group,
+                        iconColor = MaterialTheme.colorScheme.primary
+                    )
+                    DashboardInfoPill(
+                        title = "Events",
+                        value = uiState.eventCount.toString(),
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Event,
+                        iconColor = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardInfoPill(title: String, value: String, modifier: Modifier = Modifier, icon: ImageVector, iconColor: Color) {
+    Card(
+        modifier = modifier.height(80.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = title,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
 }
+
+
+// --- SUPPORTING COMPOSABLES (Modified/Removed) ---
+
+// REMOVED old DashboardCard
+// The functionality is now integrated into ClubHeaderCard and DashboardInfoPill
 
 @Composable
 fun ManagementListItem(
@@ -214,14 +289,19 @@ fun ManagementListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
 
+            // Icon container with a subtle background for pop
             Box(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = iconColor
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -232,6 +312,14 @@ fun ManagementListItem(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+            // Trailing arrow for navigation hint
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Default.ArrowForwardIos,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.size(16.dp)
             )
         }
     }

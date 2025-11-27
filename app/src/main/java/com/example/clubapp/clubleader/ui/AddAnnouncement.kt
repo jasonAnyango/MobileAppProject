@@ -5,14 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,7 +27,6 @@ fun AddAnnouncementScreen(
 ) {
     val firestore = remember { FirebaseFirestore.getInstance() }
 
-    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
         AddAnnouncementViewModelFactory(db = firestore)
     }
@@ -37,16 +34,12 @@ fun AddAnnouncementScreen(
     val viewModel: AddAnnouncementViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
-    // Form state variables
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
-    // Side effect to handle navigation after successful save
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
-            // Navigate back to the Announcements list
             navController.navigate(ClubLeaderScreen.Announcements.route) {
-                // Remove this screen from the back stack
                 popUpTo(ClubLeaderScreen.Announcements.route) { inclusive = true }
                 launchSingleTop = true
             }
@@ -64,54 +57,69 @@ fun AddAnnouncementScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
 
-            // ------------------ PAGE TITLE ------------------
+            // ... (Title and Error Display) ...
+
             Text(
-                text = "New Announcement for ${uiState.clubName}", // Uses dynamic club name
-                style = MaterialTheme.typography.headlineMedium,
+                text = "New Announcement",
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+            Text(
+                text = "for ${uiState.clubName}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Error Message Display
             uiState.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Check if club data is available to enable the form
             val isFormEnabled = uiState.clubId.isNotEmpty() && !uiState.isSaving
 
-            if (!isFormEnabled && uiState.clubId.isEmpty()) {
+            if (uiState.clubId.isEmpty() && !uiState.isSaving) {
                 Text(
                     "Error: Your leader account is not linked to a club. Cannot publish announcements.",
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                // Only show general loading if the club name is the default "Loading..." text
+                if (uiState.clubName == "Loading...") CircularProgressIndicator()
             }
 
+            // ------------------ INPUT FIELDS ------------------
 
-            // ------------------ TITLE INPUT ------------------
-            BasicTextField(
+            InputField(
                 value = title,
                 onValueChange = { title = it },
-                label = "Title",
+                label = "Announcement Title (Required)", // <--- FIXED HERE
+                icon = Icons.Default.Campaign,
                 enabled = isFormEnabled
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ------------------ DESCRIPTION INPUT ------------------
-            BasicTextField(
+            Spacer(modifier = Modifier.height(16.dp))
+            InputField(
                 value = description,
                 onValueChange = { description = it },
-                label = "Announcement Description",
-                minLines = 6,
+                label = "Message / Details", // <--- FIXED HERE
+                icon = Icons.Default.Message,
+                minLines = 8,
                 enabled = isFormEnabled
             )
 
@@ -122,59 +130,47 @@ fun AddAnnouncementScreen(
                 onClick = {
                     viewModel.saveAnnouncement(title, description)
                 },
-                enabled = isFormEnabled, // Disable while saving or if clubId is missing
+                enabled = isFormEnabled && title.isNotBlank() && description.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(56.dp)
             ) {
+                // This is the correct way to handle the saving state display
                 if (uiState.isSaving) {
                     CircularProgressIndicator(
                         color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 } else {
-                    Text("Publish", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Publish Announcement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
     }
 }
 
+// ---------------------------------------------------------------------
+// --- SUPPORTING COMPOSABLES ---
+// ---------------------------------------------------------------------
+
+
 @Composable
 fun AddAnnouncementBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     NavigationBar {
-        NavigationBarItem(
-            selected = currentRoute == ClubLeaderScreen.Dashboard.route,
-            onClick = { navController.navigate(ClubLeaderScreen.Dashboard.route) },
-            icon = { Icon(Icons.Default.Home, contentDescription = null) },
-            label = { Text("Dashboard") }
-        )
-
-        NavigationBarItem(
-            selected = currentRoute == ClubLeaderScreen.Events.route,
-            onClick = { navController.navigate(ClubLeaderScreen.Events.route) },
-            icon = { Icon(Icons.Default.Event, contentDescription = null) },
-            label = { Text("Events") }
-        )
-
-        NavigationBarItem(
-            selected = currentRoute == ClubLeaderScreen.Members.route,
-            onClick = { navController.navigate(ClubLeaderScreen.Members.route) },
-            icon = { Icon(Icons.Default.Group, contentDescription = null) },
-            label = { Text("Members") }
-        )
-
-        NavigationBarItem(
-            selected = currentRoute == ClubLeaderScreen.Announcements.route,
-            onClick = { navController.navigate(ClubLeaderScreen.Announcements.route) },
-            icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-            label = { Text("Announce") }
-        )
+        NavigationBarItem(selected = currentRoute == ClubLeaderScreen.Dashboard.route, onClick = { navController.navigate(ClubLeaderScreen.Dashboard.route) }, icon = { Icon(Icons.Default.Home, contentDescription = null) }, label = { Text("Dashboard") })
+        NavigationBarItem(selected = currentRoute == ClubLeaderScreen.Events.route, onClick = { navController.navigate(ClubLeaderScreen.Events.route) }, icon = { Icon(Icons.Default.Event, contentDescription = null) }, label = { Text("Events") })
+        NavigationBarItem(selected = currentRoute == ClubLeaderScreen.Members.route, onClick = { navController.navigate(ClubLeaderScreen.Members.route) }, icon = { Icon(Icons.Default.Group, contentDescription = null) }, label = { Text("Members") })
+        NavigationBarItem(selected = currentRoute == ClubLeaderScreen.Announcements.route, onClick = { navController.navigate(ClubLeaderScreen.Announcements.route) }, icon = { Icon(Icons.Default.Notifications, contentDescription = null) }, label = { Text("Announce") })
     }
 }

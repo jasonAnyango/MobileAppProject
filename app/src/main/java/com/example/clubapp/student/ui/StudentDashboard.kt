@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,12 +14,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-// --- UPDATED IMPORTS ---
 import com.example.clubapp.student.data.StudentRepository
 import com.example.clubapp.model.User
 import com.example.clubapp.model.Event
@@ -31,29 +32,20 @@ fun StudentDashboardScreen(
     onBrowseEvents: () -> Unit,
     onMyEvents: () -> Unit,
     onCreateClub: () -> Unit,
-    onManageClub: () -> Unit // <--- 1. ADDED MISSING PARAMETER
+    onManageClub: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-
-    // --- 2. UPDATED STATE VARIABLES TO USE SHARED MODELS ---
     var user by remember { mutableStateOf<User?>(null) }
     var myClubsCount by remember { mutableStateOf(0) }
     var upcomingEvents by remember { mutableStateOf<List<Event>>(emptyList()) }
 
-    // Note: We don't have 'getStudentEventRegistrations' in the new repo yet,
-    // so I'll simplify stats for now to prevent crashes.
-
     LaunchedEffect(Unit) {
         coroutineScope.launch {
-            // --- 3. UPDATED REPOSITORY CALLS ---
             val currentUser = studentRepository.getMyUserProfile()
             user = currentUser
-
             if (currentUser != null) {
                 myClubsCount = currentUser.clubsJoined.size
             }
-
-            // Fetch real events
             upcomingEvents = studentRepository.getAllEvents().take(3)
         }
     }
@@ -62,90 +54,139 @@ fun StudentDashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .background(MaterialTheme.colorScheme.background) // Clean background
             .padding(16.dp)
     ) {
-        // Welcome Section
+        // --- 1. HERO WELCOME CARD ---
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    // --- 4. CHANGED student.name TO user.fullName ---
-                    text = "Welcome, ${user?.fullName ?: "Student"}!",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Explore clubs and events around campus",
-                    style = MaterialTheme.typography.bodyMedium
+            Box(
+                modifier = Modifier
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
+                            )
+                        )
+                    )
+                    .padding(24.dp)
+                    .fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = "Hello, ${user?.fullName?.split(" ")?.firstOrNull() ?: "Student"}!",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Ready to explore campus life?",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.School,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier
+                        .size(80.dp)
+                        .align(Alignment.CenterEnd)
+                        .offset(x = 10.dp, y = 10.dp)
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- 5. MANAGE CLUB BUTTON (Only for Leaders) ---
-        val isClubLeader = user?.role == "Club Lead" || user?.isClubLeader == true
-
-        if (isClubLeader) {
-            ActionCard(
-                title = "Manage My Club",
-                description = "Access Leader Dashboard",
-                icon = Icons.Default.Star, // Distinct Icon
-                onClick = onManageClub,
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Quick Stats
-        Row(modifier = Modifier.fillMaxWidth()) {
+        // --- 2. STATS ROW ---
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             DashboardStatCard(
                 title = "My Clubs",
                 value = myClubsCount.toString(),
                 icon = Icons.Default.Group,
-                modifier = Modifier.weight(1f),
-                onClick = onMyClubs
+                color = MaterialTheme.colorScheme.primaryContainer,
+                onClick = onMyClubs,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(8.dp))
             DashboardStatCard(
                 title = "Events",
-                value = upcomingEvents.size.toString(), // Placeholder until event registration logic exists
+                value = upcomingEvents.size.toString(),
                 icon = Icons.Default.Event,
-                modifier = Modifier.weight(1f),
-                onClick = onBrowseEvents
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                onClick = onBrowseEvents,
+                modifier = Modifier.weight(1f)
             )
+        }
+
+        // --- 3. LEADER ACTION (Conditional) ---
+        val isClubLeader = user?.role == "Club Lead" || user?.isClubLeader == true
+        if (isClubLeader) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onManageClub,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                )
+            ) {
+                Icon(Icons.Default.Star, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Go to Leader Dashboard", style = MaterialTheme.typography.titleMedium)
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Quick Actions
+        // --- 4. QUICK ACTIONS GRID ---
         Text(
             text = "Quick Actions",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        ActionCard(
-            title = "Browse All Clubs",
-            description = "Discover new clubs to join",
-            icon = Icons.Default.Search,
-            onClick = onBrowseClubs
-        )
-
-        ActionCard(
-            title = "Create New Club",
-            description = "Start your own club",
-            icon = Icons.Default.Add,
-            onClick = onCreateClub
-        )
+        // Row 1
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DashboardActionTile(
+                title = "Browse Clubs",
+                icon = Icons.Default.Search,
+                color = MaterialTheme.colorScheme.primary,
+                onClick = onBrowseClubs,
+                modifier = Modifier.weight(1f)
+            )
+            DashboardActionTile(
+                title = "Browse Events",
+                icon = Icons.Default.CalendarToday,
+                color = MaterialTheme.colorScheme.secondary,
+                onClick = onBrowseEvents,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        // Row 2
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DashboardActionTile(
+                title = "Start a Club",
+                icon = Icons.Default.Add,
+                color = MaterialTheme.colorScheme.tertiary,
+                onClick = onCreateClub,
+                modifier = Modifier.weight(1f)
+            )
+            // Empty placeholder or another action could go here
+            Spacer(modifier = Modifier.weight(1f))
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Upcoming Events Preview
+        // --- 5. UPCOMING EVENTS (Simplified List) ---
         if (upcomingEvents.isNotEmpty()) {
             Text(
                 text = "Upcoming Events",
@@ -155,19 +196,50 @@ fun StudentDashboardScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             upcomingEvents.forEach { event ->
-                EventPreviewItem(event) {
-                    onBrowseEvents()
-                }
+                EventPreviewItem(event) { onBrowseEvents() }
             }
         }
     }
 }
+
+// --- HELPER COMPOSABLES ---
 
 @Composable
 fun DashboardStatCard(
     title: String,
     value: String,
     icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(110.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = color),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.Black.copy(alpha = 0.6f))
+            Column {
+                Text(text = value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(text = title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardActionTile(
+    title: String,
+    icon: ImageVector,
+    color: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -175,79 +247,54 @@ fun DashboardStatCard(
         modifier = modifier
             .height(100.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-            Column {
-                Text(text = value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(text = title, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-@Composable
-fun ActionCard(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    containerColor: Color = MaterialTheme.colorScheme.surface // Default color
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor) // Allow custom color
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(text = description, style = MaterialTheme.typography.bodySmall)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
-}
-
-@Composable
-fun EventPreviewItem(
-    event: Event,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(modifier = Modifier.padding(12.dp)) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(icon, contentDescription = null, tint = color)
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = event.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                // Note: event.date is now a String in the new model, so no need for .toDate()
-                Text(text = "${event.date} • ${event.clubName}", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+fun EventPreviewItem(event: Event, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Date Box
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Event, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(text = event.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(text = event.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

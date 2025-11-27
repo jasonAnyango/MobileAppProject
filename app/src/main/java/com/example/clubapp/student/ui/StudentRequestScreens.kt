@@ -1,53 +1,79 @@
 package com.example.clubapp.student.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.example.clubapp.student.data.StudentRepository
-import com.example.clubapp.model.ClubRegistration // <--- Shared Model
+import com.example.clubapp.model.ClubRegistration
 
 @Composable
 fun JoinRequestsScreen(
     studentRepository: StudentRepository
 ) {
     val coroutineScope = rememberCoroutineScope()
-    // Switch to ClubRegistration (Proposals)
     var myProposals by remember { mutableStateOf<List<ClubRegistration>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
-            // Fetch the proposals using the new Repo function
             myProposals = studentRepository.getMyClubProposals()
+            isLoading = false
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("My Club Proposals", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        Text(
+            "Club Proposals",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Track the status of your new club applications.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
 
-        if (myProposals.isEmpty()) {
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (myProposals.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outline)
+                    Icon(
+                        Icons.Default.PostAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.surfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("No proposals submitted", style = MaterialTheme.typography.bodyLarge)
-                    Text("Start a new club to see status here", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No proposals yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Start a new club to see it here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(myProposals) { request ->
-                    JoinRequestListItem(request)
-                    Divider()
+                    RequestStatusCard(request)
                 }
             }
         }
@@ -55,39 +81,54 @@ fun JoinRequestsScreen(
 }
 
 @Composable
-fun JoinRequestListItem(request: ClubRegistration) {
-    val statusColor = when (request.status) {
-        "Approved" -> MaterialTheme.colorScheme.primaryContainer
-        "Rejected" -> MaterialTheme.colorScheme.errorContainer
-        else -> MaterialTheme.colorScheme.tertiaryContainer
+fun RequestStatusCard(request: ClubRegistration) {
+    val (statusColor, containerColor) = when (request.status) {
+        "Approved" -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.primaryContainer
+        "Rejected" -> MaterialTheme.colorScheme.error to MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.tertiary to MaterialTheme.colorScheme.tertiaryContainer // Pending
     }
 
-    val textColor = when (request.status) {
-        "Approved" -> MaterialTheme.colorScheme.onPrimaryContainer
-        "Rejected" -> MaterialTheme.colorScheme.onErrorContainer
-        else -> MaterialTheme.colorScheme.onTertiaryContainer
-    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = request.clubName.ifEmpty { "Unnamed Club" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = request.mission,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
+                }
 
-    ListItem(
-        leadingContent = {
-            Icon(Icons.Default.Groups, contentDescription = null)
-        },
-        headlineContent = {
-            Text(request.clubName.ifEmpty { "Unknown Club" }, fontWeight = FontWeight.SemiBold)
-        },
-        supportingContent = {
-            Text(request.mission, maxLines = 1)
-        },
-        trailingContent = {
-            Badge(containerColor = statusColor) {
-                Text(
-                    text = request.status,
-                    modifier = Modifier.padding(4.dp),
-                    color = textColor
-                )
+                Surface(
+                    color = containerColor,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = request.status,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor
+                    )
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -96,14 +137,13 @@ fun CreateClubRequestScreen(
     onSubmit: () -> Unit
 ) {
     var clubName by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") } // Renamed from purpose to match Model
+    var description by remember { mutableStateOf("") }
     var mission by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
-
-    // Fetch user name for the form
+    // Helper to get name
     val userState = produceState<com.example.clubapp.model.User?>(initialValue = null) {
         value = studentRepository.getMyUserProfile()
     }
@@ -111,22 +151,29 @@ fun CreateClubRequestScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(24.dp)
     ) {
         Text(
-            "Propose New Club",
+            "Start a New Club",
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "Fill in the details below to submit your proposal for review.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
             value = clubName,
             onValueChange = { clubName = it },
             label = { Text("Club Name") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -134,10 +181,11 @@ fun CreateClubRequestScreen(
         OutlinedTextField(
             value = mission,
             onValueChange = { mission = it },
-            label = { Text("Mission Statement") },
-            placeholder = { Text("Short slogan e.g. 'Coding for everyone'") },
+            label = { Text("Mission (Slogan)") },
+            placeholder = { Text("e.g. Innovating for the future") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -145,65 +193,56 @@ fun CreateClubRequestScreen(
         OutlinedTextField(
             value = description,
             onValueChange = { description = it },
-            label = { Text("Full Description") },
-            placeholder = { Text("What will your club do?") },
+            label = { Text("Detailed Description") },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp),
-            maxLines = 4
+                .height(150.dp), // Taller box
+            shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = {
-                if (clubName.isNotBlank() && description.isNotBlank() && mission.isNotBlank()) {
+                if (clubName.isNotBlank() && description.isNotBlank()) {
                     isLoading = true
                     coroutineScope.launch {
                         val request = ClubRegistration(
                             clubName = clubName,
                             description = description,
                             mission = mission,
-                            applicantName = userState.value?.fullName ?: "Student",
-                            // IDs are handled in Repo
+                            applicantName = userState.value?.fullName ?: "Student"
                         )
-
                         val success = studentRepository.submitClubProposal(request)
-
                         isLoading = false
-                        if (success) {
-                            showSuccessDialog = true
-                        }
+                        if (success) showSuccessDialog = true
                     }
                 }
             },
-            enabled = clubName.isNotBlank() && description.isNotBlank() && mission.isNotBlank() && !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            enabled = !isLoading && clubName.isNotBlank(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
             } else {
-                Icon(Icons.Default.Send, contentDescription = null)
+                Text("Submit Proposal")
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (isLoading) "Submitting..." else "Submit Proposal")
         }
     }
 
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
-            title = { Text("Request Submitted") },
-            text = { Text("Your club creation request has been submitted to the Admin. You can check the status in the 'My Requests' tab.") },
+            title = { Text("Success!") },
+            text = { Text("Your proposal has been submitted.") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSuccessDialog = false
-                        onSubmit()
-                    }
-                ) {
-                    Text("OK")
-                }
+                TextButton(onClick = {
+                    showSuccessDialog = false
+                    onSubmit()
+                }) { Text("Done") }
             }
         )
     }

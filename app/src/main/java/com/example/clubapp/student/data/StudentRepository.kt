@@ -1,312 +1,189 @@
 package com.example.clubapp.student.data
 
+import com.example.clubapp.model.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
 
-class StudentRepository @Inject constructor(
-    private val firestore: FirebaseFirestore,
+class StudentRepository(
+    private val db: FirebaseFirestore,
     private val auth: FirebaseAuth
 ) {
+    private val currentUserId = auth.currentUser?.uid ?: ""
 
-    val currentUserId: String? get() = auth.currentUser?.uid
-
-    // Collection references
-    private fun studentDoc() = firestore.collection("students").document(currentUserId ?: "")
-    private fun clubsCollection() = firestore.collection("clubs")
-    private fun eventsCollection() = firestore.collection("events")
-    private fun joinRequestsCollection() = firestore.collection("joinRequests")
-    private fun clubApplicationsCollection() = firestore.collection("clubApplications")
-    private fun eventRegistrationsCollection() = firestore.collection("eventRegistrations")
-
-    // Get current student profile
-    suspend fun getCurrentStudent(): Student? {
+    // ==========================================
+    // 1. STUDENT PROFILE
+    // ==========================================
+    suspend fun getCurrentUser(): User? {
+        if (currentUserId.isEmpty()) return null
         return try {
-            studentDoc().get().await().toObject<Student>()
+            // SYNC FIX: We read from "users", not "students"
+            val doc = db.collection("users").document(currentUserId).get().await()
+            doc.toObject(User::class.java)?.apply { uid = doc.id }
         } catch (e: Exception) {
             null
         }
     }
 
-    // Get all active clubs
-    suspend fun getAllClubs(): List<Club> {
+    // ==========================================
+    // 2. CLUBS
+    // ==========================================
+
+    // Get all ACTIVE clubs
+    suspend fun getActiveClubs(): List<Club> {
         return try {
-            clubsCollection()
+            val snapshot = db.collection("clubs")
                 .whereEqualTo("isActive", true)
-                .get()
-                .await()
-                .toObjects(Club::class.java)
+                .get().await()
+            val list = snapshot.toObjects(Club::class.java)
+            list.mapIndexed { index, club ->
+                club.id = snapshot.documents[index].id
+                club
+            }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    // Get club by ID
-    suspend fun getClubById(clubId: String): Club? {
+    // Join a Club (Directly updates arrays)
+    suspend fun joinClub(clubId: String): Boolean {
+        if (currentUserId.isEmpty()) return false
         return try {
-            clubsCollection().document(clubId).get().await().toObject<Club>()
-        } catch (e: Exception) {
-            null
-        }
-    }
+            db.collection("clubs").document(clubId)
+                .update("memberIds", FieldValue.arrayUnion(currentUserId))
 
-    // Get student's clubs
-    suspend fun getStudentClubs(): List<Club> {
-        return try {
-            clubsCollection()
-                .whereArrayContains("members", currentUserId ?: "")
-                .whereEqualTo("isActive", true)
-                .get()
+            db.collection("users").document(currentUserId)
+                .update("clubsJoined", FieldValue.arrayUnion(clubId))
                 .await()
-                .toObjects(Club::class.java)
+            true
         } catch (e: Exception) {
-            emptyList()
+            e.printStackTrace()
+            false
         }
     }
 
-    // Get all events
+    suspend fun leaveClub(clubId: String): Boolean {
+        if (currentUserId.isEmpty()) return false
+        return try {
+            db.collection("clubs").document(clubId)
+                .update("memberIds", FieldValue.arrayRemove(currentUserId))
+
+            db.collection("users").document(currentUserId)
+                .update("clubsJoined", FieldValue.arrayRemove(clubId))
+                .await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ==========================================
+    // 3. CREATE CLUB REQUEST
+    // ==========================================
+
+    suspend fun submitClubProposal(request: ClubRegistration): Boolean {
+        if (currentUserId.isEmpty()) return false
+        return try {
+            // SYNC FIX: We write to "club_requests" so Admin can see it
+            val ref = db.collection("club_requests").document()
+
+            request.id = ref.id
+            request.applicantId = currentUserId
+            request.status = "Pending"
+
+            ref.set(request).await()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // ==========================================
+    // 4. EVENTS
+    // ==========================================
+
     suspend fun getAllEvents(): List<Event> {
         return try {
-            eventsCollection()
-                .get()
-                .await()
-                .toObjects(Event::class.java)
+            val snapshot = db.collection("events").get().await()
+            val list = snapshot.toObjects(Event::class.java)
+            list.mapIndexed { index, event ->
+                event.id = snapshot.documents[index].id
+                event
+            }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    // Get event by ID - ADD THIS MISSING METHOD
-    suspend fun getEventById(eventId: String): Event? {
-        return try {
-            eventsCollection().document(eventId).get().await().toObject<Event>()
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    // Get events for student's clubs
-    suspend fun getEventsForStudentClubs(): List<Event> {
-        val studentClubs = getStudentClubs()
-        val clubIds = studentClubs.map { it.id }
-
-        return try {
-            eventsCollection()
-                .whereIn("clubId", clubIds)
-                .get()
-                .await()
-                .toObjects(Event::class.java)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    // Get student's event registrations
-    suspend fun getStudentEventRegistrations(): List<EventRegistration> {
-        return try {
-            eventRegistrationsCollection()
-                .whereEqualTo("studentId", currentUserId)
-                .get()
-                .await()
-                .toObjects(EventRegistration::class.java)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    // Register for event
     suspend fun registerForEvent(eventId: String): Boolean {
+        if (currentUserId.isEmpty()) return false
         return try {
+            val regId = "${currentUserId}_$eventId"
             val registration = EventRegistration(
-                id = "${currentUserId}_$eventId",
+                id = regId,
                 eventId = eventId,
-                studentId = currentUserId ?: "",
-                registrationDate = com.google.firebase.Timestamp.now(),
-                status = "Registered"
+                studentId = currentUserId,
+                timestamp = FieldValue.serverTimestamp()
             )
 
-            eventRegistrationsCollection()
-                .document(registration.id)
-                .set(registration)
-                .await()
+            db.collection("event_registrations").document(regId).set(registration).await()
             true
         } catch (e: Exception) {
             false
         }
     }
 
-    // Unregister from event
-    suspend fun unregisterFromEvent(eventId: String): Boolean {
-        return try {
-            eventRegistrationsCollection()
-                .document("${currentUserId}_$eventId")
-                .delete()
-                .await()
-            true
-        } catch (e: Exception) {
-            false
-        }
+    // ==========================================
+    // 5. HELPER: Get my Profile
+    // ==========================================
+    suspend fun getMyUserProfile(): User? {
+        return getCurrentUser()
     }
 
-    // Send join request to club
-    suspend fun sendJoinRequest(clubId: String, message: String? = null): Boolean {
-        return try {
-            val request = ClubJoinRequest(
-                id = "${currentUserId}_$clubId",
-                clubId = clubId,
-                studentId = currentUserId ?: "",
-                studentName = getCurrentStudent()?.name ?: "",
-                requestDate = com.google.firebase.Timestamp.now(),
-                status = "Pending",
-                message = message
-            )
+    // ... inside StudentRepository class ...
 
-            joinRequestsCollection()
-                .document(request.id)
-                .set(request)
-                .await()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    // Get student's join requests
-    suspend fun getStudentJoinRequests(): List<ClubJoinRequest> {
+    // ==========================================
+    // 6. LEADER HELPER: Get clubs I manage
+    // ==========================================
+    suspend fun getClubsManagedByMe(): List<Club> {
+        if (currentUserId.isEmpty()) return emptyList()
         return try {
-            joinRequestsCollection()
-                .whereEqualTo("studentId", currentUserId)
-                .get()
-                .await()
-                .toObjects(ClubJoinRequest::class.java)
+            // Query: Find clubs where "leaderId" matches the current user
+            val snapshot = db.collection("clubs")
+                .whereEqualTo("leaderId", currentUserId)
+                .whereEqualTo("isActive", true)
+                .get().await()
+
+            val list = snapshot.toObjects(Club::class.java)
+            list.mapIndexed { index, club ->
+                club.id = snapshot.documents[index].id
+                club
+            }
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         }
     }
 
-    // Submit club creation request
-    suspend fun submitClubCreationRequest(
-        clubName: String,
-        purpose: String,
-        mission: String
-    ): Boolean {
+    // Inside StudentRepository class...
+
+    suspend fun getMyClubProposals(): List<ClubRegistration> {
+        if (currentUserId.isEmpty()) return emptyList()
         return try {
-            val application = ClubApplication(
-                id = "${currentUserId}_${System.currentTimeMillis()}",
-                clubName = clubName,
-                applicantName = getCurrentStudent()?.name ?: "",
-                applicantId = currentUserId ?: "",
-                status = "Pending",
-                purpose = purpose,
-                mission = mission,
-                applicationDate = com.google.firebase.Timestamp.now()
-            )
+            val snapshot = db.collection("club_requests")
+                .whereEqualTo("applicantId", currentUserId)
+                .get().await()
 
-            clubApplicationsCollection()
-                .document(application.id)
-                .set(application)
-                .await()
-            true
+            val list = snapshot.toObjects(ClubRegistration::class.java)
+            list.mapIndexed { index, item ->
+                item.id = snapshot.documents[index].id
+                item
+            }
+            list
         } catch (e: Exception) {
-            false
-        }
-    }
-
-    // Check if student has pending request for club
-    suspend fun hasPendingRequest(clubId: String): Boolean {
-        return try {
-            val request = joinRequestsCollection()
-                .document("${currentUserId}_$clubId")
-                .get()
-                .await()
-                .toObject<ClubJoinRequest>()
-
-            request?.status == "Pending"
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    // Check if student is registered for event
-    suspend fun isRegisteredForEvent(eventId: String): Boolean {
-        return try {
-            eventRegistrationsCollection()
-                .document("${currentUserId}_$eventId")
-                .get()
-                .await()
-                .exists()
-        } catch (e: Exception) {
-            false
+            emptyList()
         }
     }
 }
-
-// Firebase Data Models
-data class Student(
-    val id: String = "",
-    val name: String = "",
-    val email: String = "",
-    val studentId: String = "",
-    val profilePicture: String = "",
-    val joinedClubs: List<String> = emptyList(),
-    val createdAt: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now()
-)
-
-data class Club(
-    val id: String = "",
-    val name: String = "",
-    val description: String = "",
-    val category: String = "",
-    val memberCount: Int = 0,
-    val isActive: Boolean = true,
-    val admins: List<String> = emptyList(),
-    val members: List<String> = emptyList(),
-    val imageUrl: String = "",
-    val createdAt: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now()
-)
-
-data class Event(
-    val id: String = "",
-    val title: String = "",
-    val description: String = "",
-    val date: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now(),
-    val location: String = "",
-    val clubId: String = "",
-    val clubName: String = "",
-    val maxParticipants: Int = 0,
-    val currentParticipants: Int = 0,
-    val imageUrl: String = "",
-    val isActive: Boolean = true
-)
-
-data class EventRegistration(
-    val id: String = "",
-    val eventId: String = "",
-    val studentId: String = "",
-    val registrationDate: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now(),
-    val status: String = "Registered" // Registered, Attended, Cancelled
-)
-
-data class ClubJoinRequest(
-    val id: String = "",
-    val clubName: String = "",
-    val clubId: String = "",
-    val studentId: String = "",
-    val studentName: String = "",
-    val requestDate: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now(),
-    val status: String = "Pending", // Pending, Approved, Rejected
-    val message: String? = null
-)
-
-data class ClubApplication(
-    val id: String = "",
-    val clubName: String = "",
-    val applicantName: String = "",
-    val applicantId: String = "",
-    val status: String = "Pending",
-    val purpose: String = "",
-    val mission: String = "",
-    val applicationDate: com.google.firebase.Timestamp = com.google.firebase.Timestamp.now()
-)

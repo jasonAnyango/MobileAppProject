@@ -1,6 +1,9 @@
 package com.example.clubapp.admin.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,33 +20,58 @@ import org.koin.androidx.compose.get
 import com.example.clubapp.admin.data.AdminRepository
 import com.example.clubapp.model.Club
 import com.example.clubapp.model.ClubRegistration
+import com.example.clubapp.model.User
 
 @Composable
 fun ClubDetailsScreen(clubId: String) {
     val repository: AdminRepository = get()
     val scope = rememberCoroutineScope()
 
-    // 1. Fetch the specific club (We filter the full list for now)
-    val clubState = produceState<Club?>(initialValue = null, key1 = clubId) {
-        // Since we don't have a getClubById in repo yet, we find it in the list
-        value = repository.getAllClubs().find { it.id == clubId }
+    // --- STATE MANAGEMENT ---
+    var refreshTrigger by remember { mutableIntStateOf(0) }
+    var showStatusDialog by remember { mutableStateOf(false) }
+    var showMembersDialog by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+
+    // --- DATA HOLDERS ---
+    var currentClub by remember { mutableStateOf<Club?>(null) }
+    var leaderUser by remember { mutableStateOf<User?>(null) }
+    var memberList by remember { mutableStateOf<List<User>>(emptyList()) }
+
+    // --- DATA FETCHING ---
+    LaunchedEffect(clubId, refreshTrigger) {
+        // 1. Get Club
+        val allClubs = repository.getAllClubs()
+        val foundClub = allClubs.find { it.id == clubId }
+        currentClub = foundClub
+
+        if (foundClub != null) {
+            // 2. Get All Users to resolve Names from IDs
+            val allUsers = repository.getAllUsers()
+
+            // 3. Resolve Leader
+            leaderUser = allUsers.find { it.uid == foundClub.leaderId }
+
+            // 4. Resolve Members
+            memberList = allUsers.filter { foundClub.memberIds.contains(it.uid) }
+        }
     }
 
-    val currentClub = clubState.value
-
-    // No Scaffold here - handled by parent NavGraph
+    // --- UI CONTENT ---
     if (currentClub == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
     } else {
+        val club = currentClub!!
+
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
 
-            // Header
-            Text(currentClub.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            // 1. Header Section
+            Text(club.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
-            val statusColor = if(currentClub.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
-            val statusText = if(currentClub.isActive) "Active" else "Inactive"
+            val statusColor = if (club.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+            val statusText = if (club.isActive) "Active" else "Inactive"
 
             Spacer(Modifier.height(8.dp))
             Badge(containerColor = statusColor) {
@@ -52,52 +80,160 @@ fun ClubDetailsScreen(clubId: String) {
 
             Spacer(Modifier.height(24.dp))
 
-            // Details (Updated to match your new Data Model)
-            DetailItem("Description", currentClub.description)
-            DetailItem("Mission", currentClub.mission)
-            DetailItem("Leader ID", currentClub.leaderId.ifEmpty { "N/A" })
-            DetailItem("Members Count", "${currentClub.memberIds.size}")
+            // 2. Club Details
+            DetailItem("Description", club.description)
+            DetailItem("Mission", club.mission)
 
-            // Note: recentEvent was removed from your new model, so I removed it here to prevent errors.
+            Spacer(Modifier.height(16.dp))
+
+            // 3. Leader Information
+            Text("Club Leader", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            if (leaderUser != null) {
+                ListItem(
+                    headlineContent = { Text(leaderUser!!.fullName, fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Student ID: ${leaderUser!!.uid}") },
+                    leadingContent = {
+                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Icon(Icons.Default.Person, null, modifier = Modifier.padding(8.dp))
+                        }
+                    }
+                )
+            } else {
+                Text("Unknown Leader (ID: ${club.leaderId})", style = MaterialTheme.typography.bodyMedium)
+            }
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // 4. Members List (Clickable)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showMembersDialog = true }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Members", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                    Text("${club.memberIds.size} Active Members", style = MaterialTheme.typography.titleMedium)
+                }
+                Icon(Icons.Default.ChevronRight, contentDescription = "View Members", tint = Color.Gray)
+            }
+            Divider()
 
             Spacer(Modifier.height(32.dp))
 
-            // Action Button
-            // Note: We need to add toggleClubStatus to your Repository for this to work perfectly.
-            // For now, I have commented out the logic to prevent crashing until you add that function.
+            // 5. Action Button (Activate/Deactivate)
             Button(
-                onClick = {
-                    scope.launch {
-                        // TODO: Add toggleClubStatus(id, boolean) to AdminRepository
-                        // repository.toggleClubStatus(currentClub.id, !currentClub.isActive)
+                onClick = { showStatusDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (club.isActive) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isProcessing
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
+                } else {
+                    val text = if (club.isActive) "Deactivate Club" else "Activate Club"
+                    Text(text)
+                }
+            }
+        }
+
+        // --- DIALOG: MEMBER LIST ---
+        if (showMembersDialog) {
+            AlertDialog(
+                onDismissRequest = { showMembersDialog = false },
+                title = { Text("Club Members") },
+                text = {
+                    // Constrain height so it scrolls
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        if (memberList.isEmpty()) {
+                            Text("No members found.")
+                        } else {
+                            LazyColumn {
+                                items(memberList) { member ->
+                                    // Check for special roles in the 'officers' map
+                                    val roleTitle = club.officers[member.uid] ?: "Member"
+
+                                    ListItem(
+                                        headlineContent = { Text(member.fullName) },
+                                        supportingContent = { Text(roleTitle) },
+                                        leadingContent = {
+                                            if (roleTitle != "Member") {
+                                                Icon(Icons.Default.Star, null, tint = MaterialTheme.colorScheme.primary)
+                                            } else {
+                                                Icon(Icons.Default.Person, null, tint = Color.Gray)
+                                            }
+                                        }
+                                    )
+                                    Divider()
+                                }
+                            }
+                        }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = if (currentClub.isActive) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)),
-                modifier = Modifier.fillMaxWidth(),
-                enabled = false // Disabled until repo function is added
-            ) {
-                val icon = if (currentClub.isActive) Icons.Default.Block else Icons.Default.CheckCircle
-                val text = if (currentClub.isActive) "Deactivate Club" else "Activate Club"
-                Icon(icon, null); Spacer(Modifier.width(8.dp)); Text(text)
-            }
+                confirmButton = {
+                    TextButton(onClick = { showMembersDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
+        // --- DIALOG: CHANGE STATUS ---
+        if (showStatusDialog) {
+            val action = if (currentClub!!.isActive) "Deactivate" else "Activate"
+
+            AlertDialog(
+                onDismissRequest = { if (!isProcessing) showStatusDialog = false },
+                title = { Text("$action Club?") },
+                text = { Text("Are you sure you want to $action '${currentClub!!.name}'?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isProcessing = true
+                                repository.toggleClubStatus(currentClub!!.id, !currentClub!!.isActive)
+                                refreshTrigger++ // Force reload
+                                isProcessing = false
+                                showStatusDialog = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (currentClub!!.isActive) MaterialTheme.colorScheme.error else Color(0xFF4CAF50))
+                    ) {
+                        Text("Yes, $action")
+                    }
+                },
+                dismissButton = {
+                    if (!isProcessing) {
+                        TextButton(onClick = { showStatusDialog = false }) { Text("Cancel") }
+                    }
+                }
+            )
         }
     }
 }
+
+// ==========================================
+//   PART 2: CLUB APPLICATION DETAILS
+// ==========================================
 
 @Composable
 fun ClubApplicationDetailsScreen(applicationId: String) {
     val repository: AdminRepository = get()
     val scope = rememberCoroutineScope()
 
-    // 1. Fetch the application
+    // States
+    var uiStatus by remember { mutableStateOf<String?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+
+    // Fetch Logic
     val appState = produceState<ClubRegistration?>(initialValue = null, key1 = applicationId) {
         value = repository.getPendingApplications().find { it.id == applicationId }
     }
 
     val application = appState.value
-
-    // Local state to update UI immediately after clicking approve/reject
-    var uiStatus by remember { mutableStateOf<String?>(null) }
     val displayStatus = uiStatus ?: application?.status ?: "Loading..."
 
     if (application == null) {
@@ -118,40 +254,82 @@ fun ClubApplicationDetailsScreen(applicationId: String) {
 
             if (displayStatus == "Pending") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+
+                    // Approve Button
                     Button(
-                        onClick = {
-                            scope.launch {
-                                repository.approveApplication(application)
-                                uiStatus = "Approved"
-                            }
-                        },
+                        onClick = { showConfirmDialog = true },
+                        enabled = !isProcessing,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     ) { Text("Approve") }
 
+                    // Reject Button
                     Button(
                         onClick = {
                             scope.launch {
+                                isProcessing = true
                                 repository.rejectApplication(application.id)
                                 uiStatus = "Rejected"
+                                isProcessing = false
                             }
                         },
+                        enabled = !isProcessing,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
-                    ) { Text("Reject") }
+                    ) { Text(if(isProcessing) "..." else "Reject") }
                 }
             } else {
-                Text("Status: $displayStatus", style = MaterialTheme.typography.titleLarge)
+                val color = if (displayStatus == "Approved") Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                Card(colors = CardDefaults.cardColors(containerColor = color), modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.padding(16.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("Status: $displayStatus", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
+        }
+
+        // Dialog: Approve
+        if (showConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { if(!isProcessing) showConfirmDialog = false },
+                icon = { Icon(Icons.Default.Verified, contentDescription = null) },
+                title = { Text("Approve Club?") },
+                text = {
+                    Text("This will create '${application.clubName}' as an active club and promote ${application.applicantName} to Club Leader.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isProcessing = true
+                                repository.approveApplication(application)
+                                uiStatus = "Approved"
+                                isProcessing = false
+                                showConfirmDialog = false
+                            }
+                        },
+                        enabled = !isProcessing,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        if(isProcessing) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White) else Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    if(!isProcessing) {
+                        TextButton(onClick = { showConfirmDialog = false }) { Text("Cancel") }
+                    }
+                }
+            )
         }
     }
 }
 
+// --- Helper Composable ---
 @Composable
 fun DetailItem(label: String, value: String) {
     Column(Modifier.padding(vertical = 8.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
-    Divider()
+    Divider(color = MaterialTheme.colorScheme.surfaceVariant)
 }

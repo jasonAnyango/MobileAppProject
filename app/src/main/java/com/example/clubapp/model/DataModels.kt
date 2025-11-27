@@ -35,7 +35,8 @@ data class User(
     var email: String = "",
     var role: String = "Student",
     var clubsJoined: List<String> = emptyList(),
-    @get:PropertyName("isSuspended") var isSuspended: Boolean = false
+    @get:PropertyName("isSuspended") var isSuspended: Boolean = false,
+    @get:PropertyName("isClubLeader") var isClubLeader: Boolean = false
 )
 
 data class Event(
@@ -54,4 +55,12 @@ data class Announcement(
     var date: String = "",
     var senderName: String = "",
     var clubId: String = "GLOBAL"
+)
+
+data class EventRegistration(
+    var id: String = "",
+    var eventId: String = "",
+    var studentId: String = "",
+    var status: String = "Registered", // "Registered", "Cancelled"
+    var timestamp: Any? = null
 )

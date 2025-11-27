@@ -18,31 +18,43 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+// --- UPDATED IMPORTS ---
+import com.example.clubapp.student.data.StudentRepository
+import com.example.clubapp.model.User
+import com.example.clubapp.model.Event
 
 @Composable
 fun StudentDashboardScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     onBrowseClubs: () -> Unit,
     onMyClubs: () -> Unit,
     onBrowseEvents: () -> Unit,
     onMyEvents: () -> Unit,
-    onCreateClub: () -> Unit
+    onCreateClub: () -> Unit,
+    onManageClub: () -> Unit // <--- 1. ADDED MISSING PARAMETER
 ) {
     val coroutineScope = rememberCoroutineScope()
 
-    var student by remember { mutableStateOf<com.example.clubapp.student.data.Student?>(null) }
+    // --- 2. UPDATED STATE VARIABLES TO USE SHARED MODELS ---
+    var user by remember { mutableStateOf<User?>(null) }
     var myClubsCount by remember { mutableStateOf(0) }
-    var myEventsCount by remember { mutableStateOf(0) }
-    var pendingRequests by remember { mutableStateOf(0) }
-    var upcomingEvents by remember { mutableStateOf<List<com.example.clubapp.student.data.Event>>(emptyList()) }
+    var upcomingEvents by remember { mutableStateOf<List<Event>>(emptyList()) }
+
+    // Note: We don't have 'getStudentEventRegistrations' in the new repo yet,
+    // so I'll simplify stats for now to prevent crashes.
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
-            student = studentRepository.getCurrentStudent()
-            myClubsCount = studentRepository.getStudentClubs().size
-            myEventsCount = studentRepository.getStudentEventRegistrations().size
-            pendingRequests = studentRepository.getStudentJoinRequests().count { it.status == "Pending" }
-            upcomingEvents = studentRepository.getEventsForStudentClubs().take(2)
+            // --- 3. UPDATED REPOSITORY CALLS ---
+            val currentUser = studentRepository.getMyUserProfile()
+            user = currentUser
+
+            if (currentUser != null) {
+                myClubsCount = currentUser.clubsJoined.size
+            }
+
+            // Fetch real events
+            upcomingEvents = studentRepository.getAllEvents().take(3)
         }
     }
 
@@ -59,7 +71,8 @@ fun StudentDashboardScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Welcome, ${student?.name ?: "Student"}!",
+                    // --- 4. CHANGED student.name TO user.fullName ---
+                    text = "Welcome, ${user?.fullName ?: "Student"}!",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -73,6 +86,20 @@ fun StudentDashboardScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // --- 5. MANAGE CLUB BUTTON (Only for Leaders) ---
+        val isClubLeader = user?.role == "Club Lead" || user?.isClubLeader == true
+
+        if (isClubLeader) {
+            ActionCard(
+                title = "Manage My Club",
+                description = "Access Leader Dashboard",
+                icon = Icons.Default.Star, // Distinct Icon
+                onClick = onManageClub,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         // Quick Stats
         Row(modifier = Modifier.fillMaxWidth()) {
             DashboardStatCard(
@@ -84,19 +111,11 @@ fun StudentDashboardScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             DashboardStatCard(
-                title = "My Events",
-                value = myEventsCount.toString(),
+                title = "Events",
+                value = upcomingEvents.size.toString(), // Placeholder until event registration logic exists
                 icon = Icons.Default.Event,
                 modifier = Modifier.weight(1f),
-                onClick = onMyEvents
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            DashboardStatCard(
-                title = "Pending",
-                value = pendingRequests.toString(),
-                icon = Icons.Default.Pending,
-                modifier = Modifier.weight(1f),
-                onClick = { /* Navigate to requests */ }
+                onClick = onBrowseEvents
             )
         }
 
@@ -115,13 +134,6 @@ fun StudentDashboardScreen(
             description = "Discover new clubs to join",
             icon = Icons.Default.Search,
             onClick = onBrowseClubs
-        )
-
-        ActionCard(
-            title = "Browse Events",
-            description = "Find upcoming events",
-            icon = Icons.Default.CalendarToday,
-            onClick = onBrowseEvents
         )
 
         ActionCard(
@@ -183,23 +195,25 @@ fun ActionCard(
     title: String,
     description: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    containerColor: Color = MaterialTheme.colorScheme.surface // Default color
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor) // Allow custom color
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+                Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                 Text(text = description, style = MaterialTheme.typography.bodySmall)
             }
             Icon(Icons.Default.ChevronRight, contentDescription = null)
@@ -209,7 +223,7 @@ fun ActionCard(
 
 @Composable
 fun EventPreviewItem(
-    event: com.example.clubapp.student.data.Event,
+    event: Event,
     onClick: () -> Unit
 ) {
     Card(
@@ -232,7 +246,8 @@ fun EventPreviewItem(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = event.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                Text(text = "${event.date.toDate()} • ${event.clubName}", style = MaterialTheme.typography.bodySmall)
+                // Note: event.date is now a String in the new model, so no need for .toDate()
+                Text(text = "${event.date} • ${event.clubName}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

@@ -2,14 +2,9 @@ package com.example.clubapp.student.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -18,22 +13,25 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.clubapp.student.ui.BrowseClubsScreen  // Add this import
-import com.example.clubapp.student.ui.MyClubsScreen      // Add this import
-import com.example.clubapp.student.ui.StudentDashboardScreen
-import com.example.clubapp.student.ui.BrowseEventsScreen
-import com.example.clubapp.student.ui.MyEventsScreen
-import com.example.clubapp.student.ui.StudentClubDetailsScreen
-import com.example.clubapp.student.ui.StudentEventDetailsScreen
-import com.example.clubapp.student.ui.JoinRequestsScreen
-import com.example.clubapp.student.ui.CreateClubRequestScreen
+import com.example.clubapp.model.User // Import User model
+import com.example.clubapp.student.data.StudentRepository
+import com.example.clubapp.student.ui.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentNavGraph(
-    studentRepository: com.example.clubapp.student.data.StudentRepository
+    studentRepository: StudentRepository,
+    onLogout: () -> Unit,           // <--- ADDED: Logout Action
+    onSwitchToLeader: () -> Unit    // <--- ADDED: Switch Action
 ) {
     val navController = rememberNavController()
+
+    // 1. Check if User is a Leader (To show the Star button)
+    val userState = produceState<User?>(initialValue = null) {
+        value = studentRepository.getMyUserProfile()
+    }
+    val user = userState.value
+    val isClubLeader = user?.role == "Club Lead" || user?.isClubLeader == true
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -71,6 +69,21 @@ fun StudentNavGraph(
                         }
                     }
                 },
+                actions = {
+                    // --- THE THINGS THAT MATTER ---
+
+                    // 1. Switch Button (Only for Leaders)
+                    if (isClubLeader) {
+                        IconButton(onClick = onSwitchToLeader) {
+                            Icon(Icons.Default.Star, contentDescription = "Switch to Leader View")
+                        }
+                    }
+
+                    // 2. Logout Button (Always visible)
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -105,7 +118,10 @@ fun StudentNavGraph(
                     onMyClubs = { navController.navigate(StudentScreen.MyClubs.route) },
                     onBrowseEvents = { navController.navigate(StudentScreen.BrowseEvents.route) },
                     onMyEvents = { navController.navigate(StudentScreen.MyEvents.route) },
-                    onCreateClub = { navController.navigate(StudentScreen.CreateClubRequest.route) }
+                    onCreateClub = { navController.navigate(StudentScreen.CreateClubRequest.route) },
+
+                    // Pass the switch action to the Dashboard too!
+                    onManageClub = onSwitchToLeader
                 )
             }
 

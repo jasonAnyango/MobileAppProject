@@ -3,7 +3,6 @@ package com.example.clubapp.student.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -11,50 +10,62 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
+import com.example.clubapp.student.data.StudentRepository
+import com.example.clubapp.model.ClubRegistration // <--- Shared Model
 
 @Composable
 fun JoinRequestsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository
+    studentRepository: StudentRepository
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var joinRequests by remember { mutableStateOf<List<com.example.clubapp.student.data.ClubJoinRequest>>(emptyList()) }
+    // Switch to ClubRegistration (Proposals)
+    var myProposals by remember { mutableStateOf<List<ClubRegistration>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
-            joinRequests = studentRepository.getStudentJoinRequests()
+            // Fetch the proposals using the new Repo function
+            myProposals = studentRepository.getMyClubProposals()
         }
     }
 
-    if (joinRequests.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.PendingActions, contentDescription = null, modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("No join requests", style = MaterialTheme.typography.bodyLarge)
-                Text("Join clubs to see your requests here", style = MaterialTheme.typography.bodyMedium)
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("My Club Proposals", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (myProposals.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outline)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("No proposals submitted", style = MaterialTheme.typography.bodyLarge)
+                    Text("Start a new club to see status here", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-        }
-    } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(joinRequests) { request ->
-                JoinRequestListItem(request)
-                Divider()
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(myProposals) { request ->
+                    JoinRequestListItem(request)
+                    Divider()
+                }
             }
         }
     }
 }
 
 @Composable
-fun JoinRequestListItem(request: com.example.clubapp.student.data.ClubJoinRequest) {
+fun JoinRequestListItem(request: ClubRegistration) {
     val statusColor = when (request.status) {
         "Approved" -> MaterialTheme.colorScheme.primaryContainer
         "Rejected" -> MaterialTheme.colorScheme.errorContainer
         else -> MaterialTheme.colorScheme.tertiaryContainer
+    }
+
+    val textColor = when (request.status) {
+        "Approved" -> MaterialTheme.colorScheme.onPrimaryContainer
+        "Rejected" -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onTertiaryContainer
     }
 
     ListItem(
@@ -62,14 +73,18 @@ fun JoinRequestListItem(request: com.example.clubapp.student.data.ClubJoinReques
             Icon(Icons.Default.Groups, contentDescription = null)
         },
         headlineContent = {
-            Text(request.clubName ?: "Unknown Club") // Fixed: Added null check
+            Text(request.clubName.ifEmpty { "Unknown Club" }, fontWeight = FontWeight.SemiBold)
         },
         supportingContent = {
-            Text("Requested on ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(request.requestDate.toDate())}")
+            Text(request.mission, maxLines = 1)
         },
         trailingContent = {
             Badge(containerColor = statusColor) {
-                Text(request.status)
+                Text(
+                    text = request.status,
+                    modifier = Modifier.padding(4.dp),
+                    color = textColor
+                )
             }
         }
     )
@@ -77,16 +92,21 @@ fun JoinRequestListItem(request: com.example.clubapp.student.data.ClubJoinReques
 
 @Composable
 fun CreateClubRequestScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     onSubmit: () -> Unit
 ) {
     var clubName by remember { mutableStateOf("") }
-    var purpose by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") } // Renamed from purpose to match Model
     var mission by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    // Fetch user name for the form
+    val userState = produceState<com.example.clubapp.model.User?>(initialValue = null) {
+        value = studentRepository.getMyUserProfile()
+    }
 
     Column(
         modifier = Modifier
@@ -94,9 +114,9 @@ fun CreateClubRequestScreen(
             .padding(16.dp)
     ) {
         Text(
-            "Create New Club Request",
+            "Propose New Club",
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold // Fixed: Added FontWeight import
+            fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -112,9 +132,10 @@ fun CreateClubRequestScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = purpose,
-            onValueChange = { purpose = it },
-            label = { Text("Purpose") },
+            value = mission,
+            onValueChange = { mission = it },
+            label = { Text("Mission Statement") },
+            placeholder = { Text("Short slogan e.g. 'Coding for everyone'") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
@@ -122,9 +143,10 @@ fun CreateClubRequestScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = mission,
-            onValueChange = { mission = it },
-            label = { Text("Mission Statement") },
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Full Description") },
+            placeholder = { Text("What will your club do?") },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp),
@@ -135,14 +157,19 @@ fun CreateClubRequestScreen(
 
         Button(
             onClick = {
-                if (clubName.isNotBlank() && purpose.isNotBlank() && mission.isNotBlank()) {
+                if (clubName.isNotBlank() && description.isNotBlank() && mission.isNotBlank()) {
                     isLoading = true
                     coroutineScope.launch {
-                        val success = studentRepository.submitClubCreationRequest(
+                        val request = ClubRegistration(
                             clubName = clubName,
-                            purpose = purpose,
-                            mission = mission
+                            description = description,
+                            mission = mission,
+                            applicantName = userState.value?.fullName ?: "Student",
+                            // IDs are handled in Repo
                         )
+
+                        val success = studentRepository.submitClubProposal(request)
+
                         isLoading = false
                         if (success) {
                             showSuccessDialog = true
@@ -150,16 +177,16 @@ fun CreateClubRequestScreen(
                     }
                 }
             },
-            enabled = clubName.isNotBlank() && purpose.isNotBlank() && mission.isNotBlank() && !isLoading,
+            enabled = clubName.isNotBlank() && description.isNotBlank() && mission.isNotBlank() && !isLoading,
             modifier = Modifier.fillMaxWidth()
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
                 Icon(Icons.Default.Send, contentDescription = null)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(if (isLoading) "Submitting..." else "Submit Request")
+            Text(if (isLoading) "Submitting..." else "Submit Proposal")
         }
     }
 
@@ -167,7 +194,7 @@ fun CreateClubRequestScreen(
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
             title = { Text("Request Submitted") },
-            text = { Text("Your club creation request has been submitted for admin approval.") },
+            text = { Text("Your club creation request has been submitted to the Admin. You can check the status in the 'My Requests' tab.") },
             confirmButton = {
                 TextButton(
                     onClick = {

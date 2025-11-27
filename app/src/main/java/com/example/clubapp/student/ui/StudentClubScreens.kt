@@ -1,12 +1,14 @@
 package com.example.clubapp.student.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,40 +16,52 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberImagePainter
 import kotlinx.coroutines.launch
+import com.example.clubapp.student.data.StudentRepository
+import com.example.clubapp.model.Club
+import com.example.clubapp.model.User
 
 @Composable
 fun StudentClubDetailsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     clubId: String
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var club by remember { mutableStateOf<com.example.clubapp.student.data.Club?>(null) }
-    var isMember by remember { mutableStateOf(false) }
-    var hasPendingRequest by remember { mutableStateOf(false) }
-    var showJoinDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(clubId) {
+    // State
+    var club by remember { mutableStateOf<Club?>(null) }
+    var user by remember { mutableStateOf<User?>(null) }
+    var isMember by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableIntStateOf(0) } // To force refresh
+
+    LaunchedEffect(clubId, refreshTrigger) {
         coroutineScope.launch {
-            club = studentRepository.getClubById(clubId)
-            isMember = club?.members?.contains(studentRepository.currentUserId) == true
-            hasPendingRequest = studentRepository.hasPendingRequest(clubId)
+            // 1. Fetch Data
+            val allClubs = studentRepository.getActiveClubs()
+            club = allClubs.find { it.id == clubId }
+
+            user = studentRepository.getMyUserProfile()
+
+            // 2. Check Membership
+            if (user != null && club != null) {
+                isMember = user!!.clubsJoined.contains(clubId)
+            }
         }
     }
 
     if (club == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Club not found")
+            CircularProgressIndicator()
         }
     } else {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             // Club Image Section
             ClubImageSection(club = club!!)
@@ -58,136 +72,101 @@ fun StudentClubDetailsScreen(
             ClubInfoSection(
                 club = club!!,
                 isMember = isMember,
-                hasPendingRequest = hasPendingRequest,
-                onJoinClick = { showJoinDialog = true }
-            )
-
-            // Join Dialog
-            if (showJoinDialog) {
-                AlertDialog(
-                    onDismissRequest = { showJoinDialog = false },
-                    title = { Text("Join ${club!!.name}") },
-                    text = { Text("Are you sure you want to send a join request to this club?") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    studentRepository.sendJoinRequest(clubId)
-                                    hasPendingRequest = true
-                                    showJoinDialog = false
-                                }
-                            }
-                        ) {
-                            Text("Send Request")
+                onJoinToggle = {
+                    coroutineScope.launch {
+                        if (isMember) {
+                            studentRepository.leaveClub(clubId)
+                        } else {
+                            studentRepository.joinClub(clubId)
                         }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showJoinDialog = false }) {
-                            Text("Cancel")
-                        }
+                        refreshTrigger++ // Reload UI
                     }
-                )
-            }
+                }
+            )
         }
     }
 }
 
 @Composable
-fun ClubImageSection(club: com.example.clubapp.student.data.Club) {
+fun ClubImageSection(club: Club) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp),
+            .height(180.dp),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
-        if (club.imageUrl.isNotEmpty()) {
-            // Display club image from URL
-            Image(
-                painter = rememberImagePainter(
-                    data = club.imageUrl,
-                    builder = {
-                        crossfade(true)
-                        error(androidx.compose.ui.res.painterResource(com.example.clubapp.R.drawable.ic_club_placeholder))
-                    }
-                ),
-                contentDescription = "Club Image",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+        // Since we removed ImageUrl for now, we show a nice Placeholder with Initials
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = club.name.take(2).uppercase(),
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
-        } else {
-            // Display placeholder with club initial
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = club.name.take(2).uppercase(),
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
         }
     }
 }
 
 @Composable
 fun ClubInfoSection(
-    club: com.example.clubapp.student.data.Club,
+    club: Club,
     isMember: Boolean,
-    hasPendingRequest: Boolean,
-    onJoinClick: () -> Unit
+    onJoinToggle: () -> Unit
 ) {
     Column {
-        Text(club.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = club.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Status badge
-        when {
-            isMember -> {
-                Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                    Text("Member", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
-            }
-            hasPendingRequest -> {
-                Badge(containerColor = MaterialTheme.colorScheme.tertiaryContainer) {
-                    Text("Pending Approval", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
-            }
-            else -> {
-                if (club.isActive) {
-                    Button(onClick = onJoinClick) {
-                        Icon(Icons.Default.PersonAdd, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Join Club")
-                    }
-                } else {
-                    Badge(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                        Text("Club Inactive", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
+            // Status badge
+            if (isMember) {
+                Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                    Text("Member", modifier = Modifier.padding(4.dp))
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Join/Leave Button
+        Button(
+            onClick = onJoinToggle,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isMember) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(if (isMember) Icons.Default.ExitToApp else Icons.Default.PersonAdd, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (isMember) "Leave Club" else "Join Club")
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Club details
+        // Details
+        DetailItem("Mission", club.mission)
         DetailItem("Description", club.description)
-        DetailItem("Category", club.category)
-        DetailItem("Members", "${club.memberCount} members")
-        DetailItem("Admins", club.admins.joinToString())
+        DetailItem("Members", "${club.memberIds.size} Active Members")
+        DetailItem("Leader ID", club.leaderId.ifEmpty { "N/A" })
     }
 }
 
 @Composable
 fun ClubListItem(
-    club: com.example.clubapp.student.data.Club,
+    club: Club,
     isMember: Boolean,
-    hasPendingRequest: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -195,154 +174,119 @@ fun ClubListItem(
             .fillMaxWidth()
             .clickable { onClick() }
             .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Club Image/Icon
-            ClubThumbnail(club = club)
+            // Thumbnail
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.size(50.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = club.name.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Club Info
+            // Info
             Column(modifier = Modifier.weight(1f)) {
-                Text(club.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                Text("${club.memberCount} members • ${club.description.take(50)}...",
-                    style = MaterialTheme.typography.bodySmall)
+                Text(club.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = club.mission,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    color = Color.Gray
+                )
             }
 
-            // Status indicator
-            ClubStatusIndicator(isMember = isMember, hasPendingRequest = hasPendingRequest, isActive = club.isActive)
+            if (isMember) {
+                Icon(Icons.Default.CheckCircle, contentDescription = "Joined", tint = MaterialTheme.colorScheme.primary)
+            } else {
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
+            }
         }
     }
 }
 
-@Composable
-fun ClubThumbnail(club: com.example.clubapp.student.data.Club) {
-    Box(
-        modifier = Modifier
-            .size(50.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
-    ) {
-        if (club.imageUrl.isNotEmpty()) {
-            Image(
-                painter = rememberImagePainter(
-                    data = club.imageUrl,
-                    builder = {
-                        crossfade(true)
-                        error(androidx.compose.ui.res.painterResource(com.example.clubapp.R.drawable.ic_club_placeholder))
-                    }
-                ),
-                contentDescription = "Club Thumbnail",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Text(
-                text = club.name.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
+// --- SCREEN: BROWSE CLUBS ---
 @Composable
 fun BrowseClubsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     onClubClick: (String) -> Unit
 ) {
-    // Implementation for BrowseClubsScreen
-    val coroutineScope = rememberCoroutineScope()
-    var clubs by remember { mutableStateOf<List<com.example.clubapp.student.data.Club>>(emptyList()) }
-    var joinRequests by remember { mutableStateOf<List<com.example.clubapp.student.data.ClubJoinRequest>>(emptyList()) }
+    var clubs by remember { mutableStateOf<List<Club>>(emptyList()) }
+    var user by remember { mutableStateOf<User?>(null) }
 
+    // Fetch Data
     LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            clubs = studentRepository.getAllClubs()
-            joinRequests = studentRepository.getStudentJoinRequests()
-        }
-    }
-
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(clubs) { club ->
-            val pendingRequest = joinRequests.any { it.clubId == club.id && it.status == "Pending" }
-            val isMember = club.members.contains(studentRepository.currentUserId)
-
-            ClubListItem(
-                club = club,
-                isMember = isMember,
-                hasPendingRequest = pendingRequest,
-                onClick = { onClubClick(club.id) }
-            )
-            Divider()
-        }
-    }
-}
-
-@Composable
-fun MyClubsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
-    onClubClick: (String) -> Unit
-) {
-    // Implementation for MyClubsScreen
-    val coroutineScope = rememberCoroutineScope()
-    var clubs by remember { mutableStateOf<List<com.example.clubapp.student.data.Club>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            clubs = studentRepository.getStudentClubs()
-        }
+        clubs = studentRepository.getActiveClubs()
+        user = studentRepository.getMyUserProfile()
     }
 
     if (clubs.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("You haven't joined any clubs yet", style = MaterialTheme.typography.bodyLarge)
-                Text("Browse clubs to get started!", style = MaterialTheme.typography.bodyMedium)
-            }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No active clubs found.")
         }
     } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        ) {
+            item {
+                Text("All Active Clubs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+            }
             items(clubs) { club ->
-                ClubListItem(
-                    club = club,
-                    isMember = true,
-                    hasPendingRequest = false,
-                    onClick = { onClubClick(club.id) }
-                )
-                Divider()
+                val isMember = user?.clubsJoined?.contains(club.id) == true
+                ClubListItem(club = club, isMember = isMember, onClick = { onClubClick(club.id) })
             }
         }
     }
 }
 
+// --- SCREEN: MY CLUBS ---
 @Composable
-fun ClubStatusIndicator(isMember: Boolean, hasPendingRequest: Boolean, isActive: Boolean) {
-    when {
-        isMember -> {
-            Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                Text("Member")
+fun MyClubsScreen(
+    studentRepository: StudentRepository,
+    onClubClick: (String) -> Unit
+) {
+    var myClubs by remember { mutableStateOf<List<Club>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        val user = studentRepository.getMyUserProfile()
+        val allClubs = studentRepository.getActiveClubs()
+
+        if (user != null) {
+            // Filter locally for now
+            myClubs = allClubs.filter { user.clubsJoined.contains(it.id) }
+        }
+    }
+
+    if (myClubs.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.GroupOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("You haven't joined any clubs yet.")
             }
         }
-        hasPendingRequest -> {
-            Badge(containerColor = MaterialTheme.colorScheme.tertiaryContainer) {
-                Text("Pending")
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            item {
+                Text("My Memberships", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
             }
-        }
-        else -> {
-            if (isActive) {
-                Icon(Icons.Default.ChevronRight, contentDescription = null)
-            } else {
-                Badge(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                    Text("Inactive")
-                }
+            items(myClubs) { club ->
+                ClubListItem(club = club, isMember = true, onClick = { onClubClick(club.id) })
             }
         }
     }
@@ -354,5 +298,5 @@ fun DetailItem(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
-    Divider()
+    Divider(color = MaterialTheme.colorScheme.surfaceVariant)
 }

@@ -14,12 +14,23 @@ class AdminRepository(private val db: FirebaseFirestore) {
     suspend fun getAllClubs(): List<Club> {
         return try {
             val snapshot = db.collection("clubs").get().await()
+            // Using copy() ensures we get the ID safely even if using val/var
             snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Club::class.java)?.copy(id = doc.id)
+                doc.toObject(Club::class.java)?.apply { id = doc.id }
             }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
+        }
+    }
+
+    // --- ADDED THIS FUNCTION FOR THE UI BUTTON ---
+    suspend fun toggleClubStatus(clubId: String, isActive: Boolean) {
+        try {
+            db.collection("clubs").document(clubId)
+                .update("isActive", isActive).await()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -34,7 +45,7 @@ class AdminRepository(private val db: FirebaseFirestore) {
                 .get().await()
 
             snapshot.documents.mapNotNull { doc ->
-                doc.toObject(ClubRegistration::class.java)?.copy(id = doc.id)
+                doc.toObject(ClubRegistration::class.java)?.apply { id = doc.id }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -42,15 +53,14 @@ class AdminRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    // --- LOGIC UNCOMMENTED AND ENABLED ---
     suspend fun approveApplication(app: ClubRegistration) {
-        // --- COMMENTED OUT AS REQUESTED ---
-        /*
         try {
             // A. Mark request as Approved
             db.collection("club_requests").document(app.id)
                 .update("status", "Approved").await()
 
-            // B. Create Real Club
+            // B. Create Real Club in 'clubs' collection
             val newClubRef = db.collection("clubs").document()
             val newClub = Club(
                 id = newClubRef.id,
@@ -58,12 +68,13 @@ class AdminRepository(private val db: FirebaseFirestore) {
                 description = app.description,
                 mission = app.mission,
                 leaderId = app.applicantId,
-                memberIds = listOf(app.applicantId),
+                memberIds = listOf(app.applicantId), // Leader is first member
+                officers = mapOf(app.applicantId to "Chairperson"), // Default role
                 isActive = true
             )
             newClubRef.set(newClub).await()
 
-            // C. Promote User
+            // C. Promote User to Club Lead
             db.collection("users").document(app.applicantId).update(
                 mapOf(
                     "role" to "Club Lead",
@@ -75,7 +86,6 @@ class AdminRepository(private val db: FirebaseFirestore) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        */
     }
 
     suspend fun rejectApplication(appId: String) {
@@ -95,7 +105,7 @@ class AdminRepository(private val db: FirebaseFirestore) {
         return try {
             val snapshot = db.collection("users").get().await()
             snapshot.documents.mapNotNull { doc ->
-                doc.toObject(User::class.java)?.copy(uid = doc.id)
+                doc.toObject(User::class.java)?.apply { uid = doc.id }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -106,7 +116,7 @@ class AdminRepository(private val db: FirebaseFirestore) {
     suspend fun getUserById(userId: String): User? {
         return try {
             val doc = db.collection("users").document(userId).get().await()
-            doc.toObject(User::class.java)?.copy(uid = doc.id)
+            doc.toObject(User::class.java)?.apply { uid = doc.id }
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -160,7 +170,7 @@ class AdminRepository(private val db: FirebaseFirestore) {
         return try {
             val snapshot = db.collection("events").get().await()
             snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Event::class.java)?.copy(id = doc.id)
+                doc.toObject(Event::class.java)?.apply { id = doc.id }
             }
         } catch (e: Exception) {
             e.printStackTrace()

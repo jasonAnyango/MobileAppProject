@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,33 +14,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.text.SimpleDateFormat
-import java.util.*
 import kotlinx.coroutines.launch
+// --- UPDATED IMPORTS ---
+import com.example.clubapp.student.data.StudentRepository
+import com.example.clubapp.model.Event
 
 @Composable
 fun BrowseEventsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     onEventClick: (String) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var events by remember { mutableStateOf<List<com.example.clubapp.student.data.Event>>(emptyList()) }
-    var registrations by remember { mutableStateOf<List<com.example.clubapp.student.data.EventRegistration>>(emptyList()) }
+    var events by remember { mutableStateOf<List<Event>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             events = studentRepository.getAllEvents()
-            registrations = studentRepository.getStudentEventRegistrations()
         }
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(events) { event ->
-            val isRegistered = registrations.any { it.eventId == event.id }
-
             EventListItem(
                 event = event,
-                isRegistered = isRegistered,
                 onClick = { onEventClick(event.id) }
             )
             Divider()
@@ -48,70 +46,46 @@ fun BrowseEventsScreen(
 
 @Composable
 fun MyEventsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     onEventClick: (String) -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    var events by remember { mutableStateOf<List<com.example.clubapp.student.data.Event>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            val registrations = studentRepository.getStudentEventRegistrations()
-            val eventIds = registrations.map { it.eventId }
-            val allEvents = studentRepository.getAllEvents()
-            events = allEvents.filter { it.id in eventIds }
-        }
-    }
-
-    if (events.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("You haven't registered for any events", style = MaterialTheme.typography.bodyLarge)
-                Text("Browse events to get started!", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(events) { event ->
-                EventListItem(
-                    event = event,
-                    isRegistered = true,
-                    onClick = { onEventClick(event.id) }
-                )
-                Divider()
-            }
+    // Note: We removed complex event registration for the MVP to simplify things.
+    // For now, this will just show a placeholder or you can list all events.
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(64.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Event Registration Feature coming soon!", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
 
 @Composable
 fun StudentEventDetailsScreen(
-    studentRepository: com.example.clubapp.student.data.StudentRepository,
+    studentRepository: StudentRepository,
     eventId: String
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var event by remember { mutableStateOf<com.example.clubapp.student.data.Event?>(null) }
-    var isRegistered by remember { mutableStateOf(false) }
-    var showRegistrationDialog by remember { mutableStateOf(false) }
+    var event by remember { mutableStateOf<Event?>(null) }
 
     LaunchedEffect(eventId) {
         coroutineScope.launch {
-            event = studentRepository.getEventById(eventId)
-            isRegistered = studentRepository.isRegisteredForEvent(eventId)
+            // Filter locally for now
+            val allEvents = studentRepository.getAllEvents()
+            event = allEvents.find { it.id == eventId }
         }
     }
 
     if (event == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Event not found")
+            CircularProgressIndicator()
         }
     } else {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(event!!.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
@@ -120,89 +94,26 @@ fun StudentEventDetailsScreen(
             // Event details card
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    DetailRow(Icons.Default.DateRange, "Date",
-                        SimpleDateFormat("MMM dd, yyyy 'at' HH:mm", Locale.getDefault())
-                            .format(event!!.date.toDate()))
+                    DetailRow(Icons.Default.DateRange, "Date", event!!.date)
                     Spacer(modifier = Modifier.height(8.dp))
                     DetailRow(Icons.Default.Place, "Location", event!!.location)
                     Spacer(modifier = Modifier.height(8.dp))
                     DetailRow(Icons.Default.Group, "Organizer", event!!.clubName)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DetailRow(Icons.Default.People, "Participants",
-                        "${event!!.currentParticipants}/${event!!.maxParticipants}")
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Description
             Text("Description", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(event!!.description)
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Registration button
-            if (isRegistered) {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            studentRepository.unregisterFromEvent(eventId)
-                            isRegistered = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Cancel, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Unregister from Event")
-                }
-            } else {
-                Button(
-                    onClick = { showRegistrationDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Register for Event")
-                }
-            }
-
-            // Registration Dialog
-            if (showRegistrationDialog) {
-                AlertDialog(
-                    onDismissRequest = { showRegistrationDialog = false },
-                    title = { Text("Register for Event") },
-                    text = { Text("Are you sure you want to register for \"${event!!.title}\"?") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    studentRepository.registerForEvent(eventId)
-                                    isRegistered = true
-                                    showRegistrationDialog = false
-                                }
-                            }
-                        ) {
-                            Text("Register")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showRegistrationDialog = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
         }
     }
 }
 
 @Composable
 fun EventListItem(
-    event: com.example.clubapp.student.data.Event,
-    isRegistered: Boolean,
+    event: Event,
     onClick: () -> Unit
 ) {
     ListItem(
@@ -213,16 +124,10 @@ fun EventListItem(
             Text(event.title)
         },
         supportingContent = {
-            Text("${SimpleDateFormat("MMM dd", Locale.getDefault()).format(event.date.toDate())} • ${event.clubName}")
+            Text("${event.date} • ${event.clubName}")
         },
         trailingContent = {
-            if (isRegistered) {
-                Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                    Text("Registered")
-                }
-            } else {
-                Icon(Icons.Default.ChevronRight, contentDescription = null)
-            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
         },
         modifier = Modifier.clickable { onClick() }
     )

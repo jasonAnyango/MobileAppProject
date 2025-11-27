@@ -14,26 +14,33 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.clubapp.admin.data.MockAdminRepository
+import kotlinx.coroutines.launch
+import org.koin.androidx.compose.get // Inject Koin
+import com.example.clubapp.admin.data.AdminRepository
+import com.example.clubapp.model.User
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllUsersScreen(onUserClick: (String) -> Unit) {
-    val allUsers = remember { MockAdminRepository.getAllUsers() }
+    // 1. Inject Repository
+    val repository: AdminRepository = get()
+
+    // 2. Fetch Real Users
+    val allUsers by produceState(initialValue = emptyList<User>()) {
+        value = repository.getAllUsers()
+    }
 
     // State for Search and Filters
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
 
-    // Filter Logic
+    // Filter Logic (Updated for 'fullName')
     val filteredUsers = allUsers.filter { user ->
-        val matchesSearch = user.name.contains(searchQuery, ignoreCase = true) ||
+        val matchesSearch = user.fullName.contains(searchQuery, ignoreCase = true) ||
                 user.email.contains(searchQuery, ignoreCase = true)
         val matchesFilter = when (selectedFilter) {
             "All" -> true
@@ -88,11 +95,15 @@ fun AllUsersScreen(onUserClick: (String) -> Unit) {
         // --- User List ---
         if (filteredUsers.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "No users found.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.outline
-                )
+                if (allUsers.isEmpty()) {
+                    CircularProgressIndicator() // Loading state
+                } else {
+                    Text(
+                        text = "No users found.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -101,12 +112,12 @@ fun AllUsersScreen(onUserClick: (String) -> Unit) {
                         leadingContent = {
                             Surface(
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                                color = if (user.isSuspended) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
-                                        text = user.name.take(1).uppercase(),
+                                        text = user.fullName.take(1).uppercase(),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -114,8 +125,15 @@ fun AllUsersScreen(onUserClick: (String) -> Unit) {
                                 }
                             }
                         },
-                        headlineContent = { Text(user.name, fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text(user.email) },
+                        headlineContent = { Text(user.fullName, fontWeight = FontWeight.SemiBold) },
+                        supportingContent = {
+                            Column {
+                                Text(user.email)
+                                if (user.isSuspended) {
+                                    Text("SUSPENDED", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        },
                         trailingContent = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 // Role Badge
@@ -138,7 +156,7 @@ fun AllUsersScreen(onUserClick: (String) -> Unit) {
                                 )
                             }
                         },
-                        modifier = Modifier.clickable { onUserClick(user.id) } // Pass ID preferably
+                        modifier = Modifier.clickable { onUserClick(user.uid) } // Pass UID
                     )
                     Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 }
@@ -149,11 +167,21 @@ fun AllUsersScreen(onUserClick: (String) -> Unit) {
 
 @Composable
 fun UserDetailsScreen(userId: String) {
-    val user = remember(userId) { MockAdminRepository.getUserById(userId) }
+    val repository: AdminRepository = get()
+    val scope = rememberCoroutineScope()
+
+    // Trigger to re-fetch data after suspending
+    var refreshTrigger by remember { mutableIntStateOf(0) }
+
+    val userState = produceState<User?>(initialValue = null, key1 = userId, key2 = refreshTrigger) {
+        value = repository.getUserById(userId)
+    }
+
+    val user = userState.value
 
     if (user == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("User not found")
+            CircularProgressIndicator()
         }
     } else {
         Column(
@@ -173,14 +201,14 @@ fun UserDetailsScreen(userId: String) {
                     // Big Profile Picture
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (user.isSuspended) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .size(100.dp)
                             .padding(4.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.Person,
+                                imageVector = if(user.isSuspended) Icons.Default.Block else Icons.Default.Person,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(64.dp)
@@ -191,7 +219,7 @@ fun UserDetailsScreen(userId: String) {
                     Spacer(Modifier.height(16.dp))
 
                     Text(
-                        text = user.name,
+                        text = user.fullName,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -203,6 +231,13 @@ fun UserDetailsScreen(userId: String) {
                     )
 
                     Spacer(Modifier.height(8.dp))
+
+                    if (user.isSuspended) {
+                        Badge(containerColor = MaterialTheme.colorScheme.error) {
+                            Text("ACCOUNT SUSPENDED", modifier = Modifier.padding(horizontal = 8.dp), color = Color.White)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
 
                     Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
                         Text(
@@ -230,7 +265,7 @@ fun UserDetailsScreen(userId: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        DetailRow(icon = Icons.Default.Badge, label = "User ID", value = user.id)
+                        DetailRow(icon = Icons.Default.Badge, label = "User ID", value = user.uid)
                         Spacer(Modifier.height(12.dp))
                         DetailRow(icon = Icons.Default.Email, label = "Email", value = user.email)
                     }
@@ -254,7 +289,9 @@ fun UserDetailsScreen(userId: String) {
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 } else {
-                    user.clubsJoined.forEach { clubName ->
+                    // Note: Ideally we would fetch Club Names here using the IDs.
+                    // For now, we list the IDs or you can fetch the names in repo
+                    user.clubsJoined.forEach { clubId ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -271,7 +308,7 @@ fun UserDetailsScreen(userId: String) {
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(Modifier.width(12.dp))
-                                Text(text = clubName, style = MaterialTheme.typography.bodyLarge)
+                                Text(text = "Club ID: $clubId", style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                     }
@@ -279,15 +316,30 @@ fun UserDetailsScreen(userId: String) {
 
                 Spacer(Modifier.height(32.dp))
 
-                // --- Actions ---
+                // --- Suspend / Reactivate Action ---
                 Button(
-                    onClick = { /* Suspend Logic */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        scope.launch {
+                            if (user.isSuspended) {
+                                repository.reactivateUser(user.uid)
+                            } else {
+                                repository.suspendUser(user.uid)
+                            }
+                            // Trigger a refresh of this screen to update the UI
+                            refreshTrigger++
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (user.isSuspended) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Block, contentDescription = null)
+                    val icon = if (user.isSuspended) Icons.Default.CheckCircle else Icons.Default.Block
+                    val text = if (user.isSuspended) "Reactivate User" else "Suspend User"
+
+                    Icon(icon, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Suspend User")
+                    Text(text)
                 }
             }
         }
@@ -295,7 +347,7 @@ fun UserDetailsScreen(userId: String) {
 }
 
 @Composable
-fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+fun DetailRow(icon: ImageVector, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = icon,

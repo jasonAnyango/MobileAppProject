@@ -12,20 +12,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.clubapp.admin.data.MockAdminRepository
+import kotlinx.coroutines.launch
+import org.koin.androidx.compose.get
+import com.example.clubapp.admin.data.AdminRepository
+import com.example.clubapp.model.Club
+import com.example.clubapp.model.ClubRegistration
 
 @Composable
 fun ClubDetailsScreen(clubId: String) {
-    var club by remember { mutableStateOf(MockAdminRepository.getClubById(clubId)) }
+    val repository: AdminRepository = get()
+    val scope = rememberCoroutineScope()
 
-    fun refreshClub() { club = MockAdminRepository.getClubById(clubId) }
+    // 1. Fetch the specific club (We filter the full list for now)
+    val clubState = produceState<Club?>(initialValue = null, key1 = clubId) {
+        // Since we don't have a getClubById in repo yet, we find it in the list
+        value = repository.getAllClubs().find { it.id == clubId }
+    }
+
+    val currentClub = clubState.value
 
     // No Scaffold here - handled by parent NavGraph
-    if (club == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Club Not Found") }
+    if (currentClub == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
     } else {
-        val currentClub = club!!
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+
+            // Header
             Text(currentClub.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
             val statusColor = if(currentClub.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
@@ -37,21 +51,30 @@ fun ClubDetailsScreen(clubId: String) {
             }
 
             Spacer(Modifier.height(24.dp))
+
+            // Details (Updated to match your new Data Model)
             DetailItem("Description", currentClub.description)
-            DetailItem("Admin(s)", currentClub.admins.joinToString())
-            DetailItem("Members", "${currentClub.memberCount}")
-            DetailItem("Recent Event", currentClub.recentEvent ?: "None")
+            DetailItem("Mission", currentClub.mission)
+            DetailItem("Leader ID", currentClub.leaderId.ifEmpty { "N/A" })
+            DetailItem("Members Count", "${currentClub.memberIds.size}")
+
+            // Note: recentEvent was removed from your new model, so I removed it here to prevent errors.
 
             Spacer(Modifier.height(32.dp))
 
+            // Action Button
+            // Note: We need to add toggleClubStatus to your Repository for this to work perfectly.
+            // For now, I have commented out the logic to prevent crashing until you add that function.
             Button(
                 onClick = {
-                    if (currentClub.isActive) MockAdminRepository.deactivateClub(currentClub.id)
-                    else MockAdminRepository.activateClub(currentClub.id)
-                    refreshClub()
+                    scope.launch {
+                        // TODO: Add toggleClubStatus(id, boolean) to AdminRepository
+                        // repository.toggleClubStatus(currentClub.id, !currentClub.isActive)
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = if (currentClub.isActive) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false // Disabled until repo function is added
             ) {
                 val icon = if (currentClub.isActive) Icons.Default.Block else Icons.Default.CheckCircle
                 val text = if (currentClub.isActive) "Deactivate Club" else "Activate Club"
@@ -63,37 +86,62 @@ fun ClubDetailsScreen(clubId: String) {
 
 @Composable
 fun ClubApplicationDetailsScreen(applicationId: String) {
-    val application = remember(applicationId) { MockAdminRepository.getApplicationById(applicationId) }
-    var currentStatus by remember { mutableStateOf(application?.status ?: "Unknown") }
+    val repository: AdminRepository = get()
+    val scope = rememberCoroutineScope()
 
-    // No Scaffold here
+    // 1. Fetch the application
+    val appState = produceState<ClubRegistration?>(initialValue = null, key1 = applicationId) {
+        value = repository.getPendingApplications().find { it.id == applicationId }
+    }
+
+    val application = appState.value
+
+    // Local state to update UI immediately after clicking approve/reject
+    var uiStatus by remember { mutableStateOf<String?>(null) }
+    val displayStatus = uiStatus ?: application?.status ?: "Loading..."
+
     if (application == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Application Not Found") }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
     } else {
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
             Text("Proposed: ${application.clubName}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
-            DetailItem("Applicant", application.applicantName)
+
+            DetailItem("Applicant Name", application.applicantName)
+            DetailItem("Applicant ID", application.applicantId)
             DetailItem("Mission", application.mission)
-            DetailItem("Purpose", application.purpose)
+            DetailItem("Description", application.description)
+
             Spacer(Modifier.height(32.dp))
 
-            if (currentStatus == "Pending") {
+            if (displayStatus == "Pending") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Button(
-                        onClick = { MockAdminRepository.approveApplication(application.id); currentStatus = "Approved" },
+                        onClick = {
+                            scope.launch {
+                                repository.approveApplication(application)
+                                uiStatus = "Approved"
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     ) { Text("Approve") }
 
                     Button(
-                        onClick = { MockAdminRepository.rejectApplication(application.id); currentStatus = "Rejected" },
+                        onClick = {
+                            scope.launch {
+                                repository.rejectApplication(application.id)
+                                uiStatus = "Rejected"
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
                     ) { Text("Reject") }
                 }
             } else {
-                Text("Status: $currentStatus", style = MaterialTheme.typography.titleLarge)
+                Text("Status: $displayStatus", style = MaterialTheme.typography.titleLarge)
             }
         }
     }

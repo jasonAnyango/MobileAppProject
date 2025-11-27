@@ -26,9 +26,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
-import com.example.clubapp.ui.theme.ClubCard
 import com.example.clubapp.ui.theme.ClubPrimary
 import com.example.clubapp.ui.theme.ClubSecondary
+import com.example.clubapp.ui.theme.ClubCard
 
 @Composable
 fun ClubLeaderDashboardScreen(

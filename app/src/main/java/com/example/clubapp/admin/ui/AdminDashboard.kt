@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.clubapp.admin.data.MockAdminRepository
+import org.koin.androidx.compose.get
+import com.example.clubapp.admin.data.AdminRepository
+import com.example.clubapp.model.*
 
 @Composable
 fun AdminDashboardScreen(
@@ -26,25 +28,47 @@ fun AdminDashboardScreen(
     onAllEvents: () -> Unit,
     onReports: () -> Unit
 ) {
-    // 1. Pull real data from the Mock Repository
-    val clubCount = remember { MockAdminRepository.getAllClubs().size.toString() }
-    val pendingCount = remember { MockAdminRepository.getPendingApplications().size.toString() }
-    val userCount = remember { MockAdminRepository.getAllUsers().size.toString() }
+    // 1. Inject the Repository directly (No separate ViewModel file needed)
+    val repository: AdminRepository = get()
 
-    // Notifications (Mocked for now)
-    val notifications = listOf("New application from 'Debate Club'", "User report received", "System maintenance scheduled")
+    // 2. Load Real Data using produceState (This replaces the Mock calls)
 
-    // 2. No Scaffold here (It's in AdminNavGraph now)
+    // Fetch Clubs
+    val clubs by produceState(initialValue = emptyList<Club>()) {
+        value = repository.getAllClubs()
+    }
+
+    // Fetch Pending Requests
+    val pendingRequests by produceState(initialValue = emptyList<ClubRegistration>()) {
+        value = repository.getPendingApplications()
+    }
+
+    // Fetch Users
+    val users by produceState(initialValue = emptyList<User>()) {
+        value = repository.getAllUsers()
+    }
+
+    // 3. Calculate Counts for the UI
+    val clubCount = clubs.size.toString()
+    val pendingCount = pendingRequests.size.toString()
+    val userCount = users.size.toString()
+
+    // 4. Notifications Logic
+    val notifications = if (pendingRequests.isNotEmpty()) {
+        listOf("You have ${pendingRequests.size} new club applications pending approval.")
+    } else {
+        listOf("System is up to date.", "No new notifications.")
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-
         Spacer(modifier = Modifier.height(20.dp))
 
-        // -------- SUMMARY CARDS (Connected to Repo) --------
+        // -------- SUMMARY CARDS --------
         Row(modifier = Modifier.fillMaxWidth()) {
             SummaryCard(
                 title = "Total Clubs",
@@ -80,11 +104,12 @@ fun AdminDashboardScreen(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
+
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
-                notifications.take(3).forEach { notif ->
+                notifications.forEach { notif ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -108,8 +133,8 @@ fun AdminDashboardScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         ListItem(
-            headlineContent = { Text("Robotics Fair 2024") },
-            supportingContent = { Text("Starts in 2 hours • Main Hall") },
+            headlineContent = { Text("Events System") },
+            supportingContent = { Text("View all upcoming events") },
             leadingContent = {
                 Box(
                     modifier = Modifier
@@ -138,7 +163,7 @@ fun AdminDashboardScreen(
     }
 }
 
-// --- Helper Composable ---
+// --- Helper Composables (Unchanged) ---
 
 @Composable
 fun SummaryCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier, color: Color) {

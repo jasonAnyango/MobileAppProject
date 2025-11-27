@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.ExitToApp // Logout Icon
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -19,26 +20,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.clubapp.admin.ui.AdminDashboardScreen
-import com.example.clubapp.admin.ui.AllEventsScreen
-import com.example.clubapp.admin.ui.AllUsersScreen
-import com.example.clubapp.admin.ui.ClubApplicationDetailsScreen
-import com.example.clubapp.admin.ui.ClubDetailsScreen
-import com.example.clubapp.admin.ui.ClubManagementScreen
-import com.example.clubapp.admin.ui.EventDetailsScreen
-import com.example.clubapp.admin.ui.ReportsScreen
-import com.example.clubapp.admin.ui.UserDetailsScreen
 
-@OptIn(ExperimentalMaterial3Api::class)
+// Import your UI screens
+import com.example.clubapp.admin.ui.* @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminNavGraph() {
+fun AdminNavGraph(
+    onLogout: () -> Unit // Pass the logout function here
+) {
     val navController = rememberNavController()
 
     // Get current route to determine TopBar/BottomBar state
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Define which screens are "Top Level" (No back arrow needed)
+    // Define which screens are "Top Level" (Show Bottom Bar, No Back Arrow)
+    // We check against YOUR AdminScreen routes
     val topLevelRoutes = listOf(
         AdminScreen.Dashboard.route,
         AdminScreen.AllClubs.route,
@@ -47,13 +43,14 @@ fun AdminNavGraph() {
         AdminScreen.Reports.route
     )
 
-    // Determine title based on route
+    // Dynamic Title Logic
     val currentTitle = when {
         currentRoute == AdminScreen.Dashboard.route -> "Dashboard"
         currentRoute == AdminScreen.AllClubs.route -> "Club Management"
         currentRoute == AdminScreen.AllUsers.route -> "User Management"
         currentRoute == AdminScreen.AllEvents.route -> "Events"
         currentRoute == AdminScreen.Reports.route -> "Reports"
+        // Check for contain matches for details screens
         currentRoute?.contains("club_details") == true -> "Club Details"
         currentRoute?.contains("user_details") == true -> "User Profile"
         currentRoute?.contains("event_details") == true -> "Event Details"
@@ -73,6 +70,12 @@ fun AdminNavGraph() {
                         }
                     }
                 },
+                actions = {
+                    // LOGOUT BUTTON
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -80,20 +83,19 @@ fun AdminNavGraph() {
             )
         },
         bottomBar = {
-            // Persistent Bottom Bar
-            AdminBottomNavigation(
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        // Pop up to the dashboard route to avoid building up a large stack
-                        popUpTo(AdminScreen.Dashboard.route) {
-                            saveState = true
+            // Only show Bottom Bar on top-level screens
+            if (currentRoute in topLevelRoutes) {
+                AdminBottomNavigation(
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(AdminScreen.Dashboard.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -101,7 +103,8 @@ fun AdminNavGraph() {
             startDestination = AdminScreen.Dashboard.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Dashboard
+
+            // 1. Dashboard
             composable(AdminScreen.Dashboard.route) {
                 AdminDashboardScreen(
                     onAllClubs = { navController.navigate(AdminScreen.AllClubs.route) },
@@ -111,45 +114,71 @@ fun AdminNavGraph() {
                 )
             }
 
-            // Club Management
+            // 2. All Clubs (Management)
             composable(AdminScreen.AllClubs.route) {
                 ClubManagementScreen(
-                    onClubClick = { clubId -> navController.navigate(AdminScreen.clubDetails(clubId)) },
-                    onApplicationClick = { appId -> navController.navigate(AdminScreen.clubApplicationDetails(appId)) }
+                    onClubClick = { clubId ->
+                        navController.navigate(AdminScreen.clubDetails(clubId))
+                    },
+                    onApplicationClick = { appId ->
+                        navController.navigate(AdminScreen.clubApplicationDetails(appId))
+                    }
                 )
             }
 
-            // Club Details
-            composable(AdminScreen.ClubDetails.route, arguments = listOf(navArgument("clubId") { type = NavType.StringType })) {
-                ClubDetailsScreen(it.arguments?.getString("clubId") ?: "")
+            // 3. Club Details
+            composable(
+                route = AdminScreen.ClubDetails.route,
+                arguments = listOf(navArgument("clubId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                ClubDetailsScreen(clubId = backStackEntry.arguments?.getString("clubId") ?: "")
             }
 
-            // Application Details
-            composable(AdminScreen.ClubApplicationDetails.route, arguments = listOf(navArgument("applicationId") { type = NavType.StringType })) {
-                ClubApplicationDetailsScreen(it.arguments?.getString("applicationId") ?: "")
+            // 4. Club Application Details
+            composable(
+                route = AdminScreen.ClubApplicationDetails.route,
+                arguments = listOf(navArgument("applicationId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                ClubApplicationDetailsScreen(
+                    applicationId = backStackEntry.arguments?.getString("applicationId") ?: ""
+                )
             }
 
-            // All Users
+            // 5. All Users
             composable(AdminScreen.AllUsers.route) {
-                AllUsersScreen(onUserClick = { userId -> navController.navigate(AdminScreen.userDetails(userId)) })
+                AllUsersScreen(
+                    onUserClick = { userId ->
+                        navController.navigate(AdminScreen.userDetails(userId))
+                    }
+                )
             }
 
-            // User Details
-            composable(AdminScreen.UserDetails.route, arguments = listOf(navArgument("userId") { type = NavType.StringType })) {
-                UserDetailsScreen(it.arguments?.getString("userId") ?: "")
+            // 6. User Details
+            composable(
+                route = AdminScreen.UserDetails.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                UserDetailsScreen(userId = backStackEntry.arguments?.getString("userId") ?: "")
             }
 
-            // All Events
+            // 7. All Events
             composable(AdminScreen.AllEvents.route) {
-                AllEventsScreen(onEventClick = { eventId -> navController.navigate(AdminScreen.eventDetails(eventId)) })
+                AllEventsScreen(
+                    onEventClick = { eventId ->
+                        navController.navigate(AdminScreen.eventDetails(eventId))
+                    }
+                )
             }
 
-            // Event Details
-            composable(AdminScreen.EventDetails.route, arguments = listOf(navArgument("eventId") { type = NavType.StringType })) {
-                EventDetailsScreen(it.arguments?.getString("eventId") ?: "")
+            // 8. Event Details
+            composable(
+                route = AdminScreen.EventDetails.route,
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                EventDetailsScreen(eventId = backStackEntry.arguments?.getString("eventId") ?: "")
             }
 
-            // Reports
+            // 9. Reports
             composable(AdminScreen.Reports.route) {
                 ReportsScreen()
             }
@@ -170,25 +199,25 @@ fun AdminBottomNavigation(
             label = { Text("Home") }
         )
         NavigationBarItem(
-            selected = currentRoute?.contains("clubs") == true,
+            selected = currentRoute == AdminScreen.AllClubs.route,
             onClick = { onNavigate(AdminScreen.AllClubs.route) },
             icon = { Icon(Icons.Default.Group, contentDescription = "Clubs") },
             label = { Text("Clubs") }
         )
         NavigationBarItem(
-            selected = currentRoute?.contains("users") == true,
+            selected = currentRoute == AdminScreen.AllUsers.route,
             onClick = { onNavigate(AdminScreen.AllUsers.route) },
             icon = { Icon(Icons.Default.Person, contentDescription = "Users") },
             label = { Text("Users") }
         )
         NavigationBarItem(
-            selected = currentRoute?.contains("events") == true,
+            selected = currentRoute == AdminScreen.AllEvents.route,
             onClick = { onNavigate(AdminScreen.AllEvents.route) },
             icon = { Icon(Icons.Default.Event, contentDescription = "Events") },
             label = { Text("Events") }
         )
         NavigationBarItem(
-            selected = currentRoute?.contains("reports") == true,
+            selected = currentRoute == AdminScreen.Reports.route,
             onClick = { onNavigate(AdminScreen.Reports.route) },
             icon = { Icon(Icons.Default.Assessment, contentDescription = "Reports") },
             label = { Text("Reports") }

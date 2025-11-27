@@ -14,7 +14,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.clubapp.admin.data.MockAdminRepository
+import org.koin.androidx.compose.get // Inject Koin
+import com.example.clubapp.admin.data.AdminRepository
+import com.example.clubapp.model.Club
+import com.example.clubapp.model.ClubRegistration
 
 // --- 1. Club Management Parent Screen (Tabs + Search + Filter) ---
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,11 +68,10 @@ fun ClubManagementScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // dynamic filters based on tab
             val filters = if (selectedTab == 0) {
                 listOf("All", "Active", "Inactive")
             } else {
-                listOf("All", "Pending") // Add "Rejected"/"Approved" here if you update your Repo to return them
+                listOf("All", "Pending")
             }
 
             filters.forEach { filter ->
@@ -118,7 +120,13 @@ fun AllClubsList(
     searchQuery: String,
     filterStatus: String
 ) {
-    val allClubs = remember { MockAdminRepository.getAllClubs() }
+    // 1. Inject Repository
+    val repository: AdminRepository = get()
+
+    // 2. Load Real Data from Firebase
+    val allClubs by produceState(initialValue = emptyList<Club>()) {
+        value = repository.getAllClubs()
+    }
 
     // Filter Logic
     val filteredClubs = allClubs.filter { club ->
@@ -133,7 +141,11 @@ fun AllClubsList(
 
     if (filteredClubs.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No clubs found matching '$searchQuery'", color = MaterialTheme.colorScheme.outline)
+            if (allClubs.isEmpty()) {
+                CircularProgressIndicator() // Show loading if data hasn't arrived
+            } else {
+                Text("No clubs found matching criteria", color = MaterialTheme.colorScheme.outline)
+            }
         }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -142,7 +154,8 @@ fun AllClubsList(
                     headlineContent = { Text(club.name, fontWeight = FontWeight.SemiBold) },
                     supportingContent = {
                         val status = if(club.isActive) "Active" else "Inactive"
-                        Text("$status • ${club.memberCount} members")
+                        // Note: memberIds.size because memberCount is calculated now
+                        Text("$status • ${club.memberIds.size} members")
                     },
                     trailingContent = { Icon(Icons.Default.ChevronRight, null) },
                     modifier = Modifier.clickable { onClubClick(club.id) }
@@ -160,7 +173,13 @@ fun ClubApplicationsList(
     searchQuery: String,
     filterStatus: String
 ) {
-    val allApplications = remember { MockAdminRepository.getPendingApplications() }
+    // 1. Inject Repository
+    val repository: AdminRepository = get()
+
+    // 2. Load Real Data from Firebase
+    val allApplications by produceState(initialValue = emptyList<ClubRegistration>()) {
+        value = repository.getPendingApplications()
+    }
 
     // Filter Logic
     val filteredApps = allApplications.filter { app ->
@@ -174,7 +193,13 @@ fun ClubApplicationsList(
 
     if (filteredApps.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No applications found", color = MaterialTheme.colorScheme.outline)
+            if (allApplications.isEmpty()) {
+                // If the list is empty, it might be loading OR there are actually no requests.
+                // For a smoother UI, usually, we'd check a loading state, but for now:
+                Text("No pending applications", color = MaterialTheme.colorScheme.outline)
+            } else {
+                Text("No applications match search", color = MaterialTheme.colorScheme.outline)
+            }
         }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -195,7 +220,7 @@ fun ClubApplicationsList(
     }
 }
 
-// Helpers
+// Helpers (Unchanged)
 @Composable
 fun ActionButton(text: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
     OutlinedButton(

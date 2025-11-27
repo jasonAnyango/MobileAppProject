@@ -26,23 +26,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 import com.google.firebase.firestore.FirebaseFirestore // Import Firestore
-import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModel // Assuming this package structure
-import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModelFactory // Assuming this package structure
+import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModel
+import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModelFactory
 
 @Composable
 fun ClubLeaderDashboardScreen(
     navController: NavHostController
 ) {
-    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-
     // 1. Get the Firestore instance
     val firestore = remember { FirebaseFirestore.getInstance() }
 
-    // 2. Create the custom factory
+    // 2. Create the custom factory (only needs Firestore now)
     val factory = remember {
         ClubDashboardViewModelFactory(
-            clubId = hardcodedClubId,
             db = firestore
         )
     }
@@ -86,7 +82,7 @@ fun ClubLeaderDashboardScreen(
             if (uiState.isLoading) {
                 item {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    Text("Loading data...", color = MaterialTheme.colorScheme.primary)
+                    Text("Loading club data...", color = MaterialTheme.colorScheme.primary)
                 }
             } else if (uiState.error != null) {
                 item {
@@ -180,8 +176,7 @@ fun ClubLeaderDashboardScreen(
 }
 
 
-// --- SUPPORTING COMPOSABLES (Same as before) ---
-
+// --- SUPPORTING COMPOSABLES (Unchanged) ---
 @Composable
 fun DashboardCard(title: String, value: String, modifier: Modifier = Modifier) {
     Card(

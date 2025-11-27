@@ -32,11 +32,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun ManageClubScreen(navController: NavHostController) {
 
-    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-
     val firestore = remember { FirebaseFirestore.getInstance() }
-    val factory = remember { ManageClubViewModelFactory(clubId = hardcodedClubId, db = firestore) }
+
+    // 💡 Simplified Factory instantiation 💡
+    val factory = remember { ManageClubViewModelFactory(db = firestore) }
+
     val viewModel: ManageClubViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
@@ -47,7 +47,8 @@ fun ManageClubScreen(navController: NavHostController) {
 
     // Update local state when ViewModel state changes (i.e., when data is loaded)
     LaunchedEffect(uiState.clubName, uiState.clubDescription, uiState.meetingTime) {
-        if (uiState.clubName.isNotEmpty() && clubName.isEmpty() && !uiState.isLoading) {
+        // Only initialize local state once after data is successfully loaded and not when it's just a blank state
+        if (!uiState.isLoading && uiState.error == null) {
             clubName = uiState.clubName
             clubDescription = uiState.clubDescription
             meetingTime = uiState.meetingTime
@@ -110,7 +111,8 @@ fun ManageClubScreen(navController: NavHostController) {
                 value = clubName,
                 onValueChange = { clubName = it },
                 label = { Text("Club Name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isSaving
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -121,7 +123,8 @@ fun ManageClubScreen(navController: NavHostController) {
                 onValueChange = { clubDescription = it },
                 label = { Text("Club Description") },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 4
+                minLines = 4,
+                enabled = !uiState.isSaving
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -131,13 +134,13 @@ fun ManageClubScreen(navController: NavHostController) {
                 value = meetingTime,
                 onValueChange = { meetingTime = it },
                 label = { Text("Meeting Time") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isSaving
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // ---------------- CLUB LOGO ----------------
-            // In a real app, this would use Coil/Glide to load uiState.logoUrl
             Image(
                 painter = painterResource(id = R.drawable.club_default), // Placeholder
                 contentDescription = "Club Logo",
@@ -165,7 +168,7 @@ fun ManageClubScreen(navController: NavHostController) {
                 onClick = {
                     viewModel.saveClubDetails(clubName, clubDescription, meetingTime)
                 },
-                enabled = !uiState.isSaving, // Disable while saving
+                enabled = !uiState.isSaving && uiState.clubId.isNotEmpty(), // Disable while saving or if no valid club ID
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -187,8 +190,6 @@ fun ManageClubScreen(navController: NavHostController) {
     }
 }
 
-
-// Removed BasicTextField as OutlinedTextField is used directly in the updated Composable
 
 @Composable
 fun ManageClubBottomNav(navController: NavHostController) {

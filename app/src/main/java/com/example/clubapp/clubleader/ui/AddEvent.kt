@@ -26,18 +26,13 @@ import com.google.firebase.firestore.FirebaseFirestore // Import Firestore
 fun AddEventScreen(
     navController: NavHostController,
 ) {
-    // ⚠️ HARDCODED DATA FOR TESTING ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-    val hardcodedClubName = "IEEE Student Branch" // Assuming a name for the club ID
-
     val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
-        AddEventViewModelFactory(
-            clubId = hardcodedClubId,
-            clubName = hardcodedClubName,
-            db = firestore
-        )
+        AddEventViewModelFactory(db = firestore)
     }
+
     val viewModel: AddEventViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
@@ -52,7 +47,6 @@ fun AddEventScreen(
         if (uiState.saveSuccess) {
             // Navigate back to the Events list and pop this screen
             navController.navigate(ClubLeaderScreen.Events.route) {
-                // Clears the stack up to the Events screen (inclusive or exclusive depending on your desired flow)
                 popUpTo(ClubLeaderScreen.Events.route) { inclusive = true }
                 launchSingleTop = true
             }
@@ -73,7 +67,7 @@ fun AddEventScreen(
 
             // ------------------ PAGE TITLE ------------------
             Text(
-                text = "Add Event for ${uiState.clubName}",
+                text = "Add Event for ${uiState.clubName}", // Uses dynamic club name
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -87,25 +81,40 @@ fun AddEventScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            // Check if club data is available to enable the form
+            val isFormEnabled = uiState.clubId.isNotEmpty() && !uiState.isSaving
+
+            if (!isFormEnabled && uiState.clubId.isEmpty()) {
+                Text(
+                    "Error: Your leader account is not linked to a club. Cannot create events.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             // ------------------ INPUT FIELDS ------------------
             BasicTextField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
-                label = "Event Title"
+                label = "Event Title",
+                enabled = isFormEnabled
             )
             Spacer(modifier = Modifier.height(12.dp))
 
             BasicTextField(
                 value = eventDateTime,
                 onValueChange = { eventDateTime = it },
-                label = "Date (YYYY-MM-DD)" // Encouraging a sortable format
+                label = "Date (YYYY-MM-DD)", // Encouraging a sortable format
+                enabled = isFormEnabled
             )
             Spacer(modifier = Modifier.height(12.dp))
 
             BasicTextField(
                 value = location,
                 onValueChange = { location = it },
-                label = "Location"
+                label = "Location",
+                enabled = isFormEnabled
             )
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -113,7 +122,8 @@ fun AddEventScreen(
                 value = description,
                 onValueChange = { description = it },
                 label = "Description",
-                minLines = 4
+                minLines = 4,
+                enabled = isFormEnabled
             )
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -122,7 +132,7 @@ fun AddEventScreen(
                 onClick = {
                     viewModel.saveEvent(eventTitle, eventDateTime, location, description)
                 },
-                enabled = !uiState.isSaving, // Disable while saving
+                enabled = isFormEnabled, // Disable if saving or clubId is missing
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -150,7 +160,8 @@ fun BasicTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    minLines: Int = 1
+    minLines: Int = 1,
+    enabled: Boolean = true // Added enabled parameter
 ) {
     OutlinedTextField(
         value = value,
@@ -158,6 +169,7 @@ fun BasicTextField(
         label = { Text(label) },
         modifier = Modifier.fillMaxWidth(),
         minLines = minLines,
+        enabled = enabled,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outline

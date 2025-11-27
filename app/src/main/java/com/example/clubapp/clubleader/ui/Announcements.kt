@@ -32,16 +32,15 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun AnnouncementsScreen(navController: NavHostController) {
 
-    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-
     val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
         AnnouncementsViewModelFactory(
-            clubId = hardcodedClubId,
             db = firestore
         )
     }
+
     val viewModel: AnnouncementsViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
@@ -72,7 +71,7 @@ fun AnnouncementsScreen(navController: NavHostController) {
             // Subtitle showing club name
             if (uiState.clubName.isNotEmpty() && !uiState.isLoading) {
                 Text(
-                    text = "Posted by ${uiState.clubName}",
+                    text = "Posted by ${uiState.clubName}", // 💡 Dynamic club name used here
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -132,6 +131,7 @@ fun AnnouncementsScreen(navController: NavHostController) {
     }
 }
 
+// ... (AnnouncementItem and AnnouncementsBottomNav Composables remain unchanged) ...
 @Composable
 fun AnnouncementItem(announcement: Announcement) {
     Card(

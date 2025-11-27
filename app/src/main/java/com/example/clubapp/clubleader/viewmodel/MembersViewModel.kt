@@ -13,19 +13,32 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.example.clubapp.clubleader.data.repository.ClubService
+import kotlinx.coroutines.runBlocking
 
 // ------------------- VIEW MODEL -------------------
 
 class MembersViewModel(
     private val clubId: String,
+    private val clubName: String, // 💡 NEW: Receive clubName from the Factory
     private val db: FirebaseFirestore
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(MembersUiState())
+    // Initialize UiState with the received clubName
+    private val _uiState = MutableStateFlow(MembersUiState(clubName = clubName))
     val uiState: StateFlow<MembersUiState> = _uiState
 
     init {
-        loadMembersData()
+        // Check if a club was found for the leader
+        if (clubId.isNotEmpty()) {
+            loadMembersData()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "Club Leader data not found. Ensure your account is linked to a club.",
+                clubName = "Unlinked User"
+            )
+        }
     }
 
     // --- Public action for handling requests ---
@@ -53,7 +66,7 @@ class MembersViewModel(
                 val pendingRequests = fetchPendingRequests(club.name)
 
                 _uiState.value = _uiState.value.copy(
-                    clubName = club.name,
+                    // clubName is already set in the UiState constructor
                     allMembers = allClubMembers,
                     pendingRequests = pendingRequests,
                     isLoading = false
@@ -116,17 +129,37 @@ class MembersViewModel(
 // ------------------- VIEW MODEL FACTORY -------------------
 
 /**
- * Factory to create MembersViewModel with dependencies for testing.
+ * Factory to create MembersViewModel. Fetches the club ID and name dynamically.
  */
 class MembersViewModelFactory(
-    private val clubId: String,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore // 💡 Only need the database instance now
 ) : ViewModelProvider.Factory {
+
+    private var dynamicClubId: String? = null
+    private var dynamicClubName: String? = null
+
+    init {
+        val clubService = ClubService(db)
+        // runBlocking is required here for synchronous factory creation
+        runBlocking {
+            try {
+                val clubData = clubService.getClubByLeaderUid()
+                dynamicClubId = clubData?.second // The document ID is the clubId
+                dynamicClubName = clubData?.first?.name
+            } catch (e: Exception) {
+                println("ERROR: MembersViewModelFactory failed to fetch club details for leader: ${e.message}")
+            }
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MembersViewModel::class.java)) {
-            return MembersViewModel(clubId, db) as T
+            // Pass the dynamically fetched values
+            val clubIdToUse = dynamicClubId ?: ""
+            val clubNameToUse = dynamicClubName ?: "Loading Club..."
+
+            return MembersViewModel(clubIdToUse, clubNameToUse, db) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

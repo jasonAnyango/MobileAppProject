@@ -12,19 +12,32 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.example.clubapp.clubleader.data.repository.ClubService
+import kotlinx.coroutines.runBlocking
 
 // ------------------- VIEW MODEL -------------------
 
 class AnnouncementsViewModel(
     private val clubId: String,
+    private val clubName: String, // 💡 NEW: Receive clubName from the Factory
     private val db: FirebaseFirestore
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AnnouncementsUiState())
+    // Initialize UiState with the received clubName
+    private val _uiState = MutableStateFlow(AnnouncementsUiState(clubName = clubName))
     val uiState: StateFlow<AnnouncementsUiState> = _uiState
 
     init {
-        loadAnnouncementsData()
+        // Only load data if a valid club ID was found
+        if (clubId.isNotEmpty()) {
+            loadAnnouncementsData()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "Club Leader data not found. Ensure your account is linked to a club.",
+                clubName = "Unlinked User"
+            )
+        }
     }
 
     private fun loadAnnouncementsData() {
@@ -32,23 +45,17 @@ class AnnouncementsViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
             try {
-                // 1. Get Club Details (to get club name for display and filtering)
-                val club = getClubDetails(clubId)
-
-                // 2. Fetch all announcements posted by that club, sorted by date (newest first)
+                // 1. Fetch all announcements posted by that club, sorted by date (newest first)
                 val announcements = fetchAnnouncementsByClubId(clubId)
 
                 _uiState.value = _uiState.value.copy(
-                    clubName = club.name,
+                    // clubName is already set in the UiState constructor
                     announcements = announcements,
                     isLoading = false
                 )
 
             } catch (e: Exception) {
-                val errorMessage = when (e) {
-                    is IllegalStateException -> e.message
-                    else -> "Failed to load announcements: ${e.message}"
-                }
+                val errorMessage = "Failed to load announcements: ${e.message}"
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = errorMessage
@@ -59,11 +66,7 @@ class AnnouncementsViewModel(
 
     // --- Data Fetching Functions ---
 
-    private suspend fun getClubDetails(id: String): Club {
-        val clubDoc = db.collection("clubs").document(id).get().await()
-        return clubDoc.toObject(Club::class.java)
-            ?: throw IllegalStateException("Club document not found for ID: $id.")
-    }
+    // Removed getClubDetails as clubName is fetched in the Factory
 
     private suspend fun fetchAnnouncementsByClubId(id: String): List<Announcement> {
         val announcementsQuery = db.collection("announcements")
@@ -81,17 +84,37 @@ class AnnouncementsViewModel(
 // ------------------- VIEW MODEL FACTORY -------------------
 
 /**
- * Factory to create AnnouncementsViewModel with dependencies for testing.
+ * Factory to create AnnouncementsViewModel. Fetches the club ID and name dynamically.
  */
 class AnnouncementsViewModelFactory(
-    private val clubId: String,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore // 💡 Only need the database instance now
 ) : ViewModelProvider.Factory {
+
+    private var dynamicClubId: String? = null
+    private var dynamicClubName: String? = null
+
+    init {
+        val clubService = ClubService(db)
+        // runBlocking is required here for synchronous factory creation
+        runBlocking {
+            try {
+                val clubData = clubService.getClubByLeaderUid()
+                dynamicClubId = clubData?.second // The document ID is the clubId
+                dynamicClubName = clubData?.first?.name
+            } catch (e: Exception) {
+                println("ERROR: AnnouncementsViewModelFactory failed to fetch club details for leader: ${e.message}")
+            }
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AnnouncementsViewModel::class.java)) {
-            return AnnouncementsViewModel(clubId, db) as T
+            // Pass the dynamically fetched values
+            val clubIdToUse = dynamicClubId ?: ""
+            val clubNameToUse = dynamicClubName ?: "Loading Club..."
+
+            return AnnouncementsViewModel(clubIdToUse, clubNameToUse, db) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

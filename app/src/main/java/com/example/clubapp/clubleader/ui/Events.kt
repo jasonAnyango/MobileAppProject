@@ -27,18 +27,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun EventsScreen(navController: NavHostController) {
     var selectedTab by remember { mutableStateOf(0) }
 
-    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-
     // 1. Get the Firestore instance
     val firestore = remember { FirebaseFirestore.getInstance() }
 
-    // 2. Create the custom factory
+    // 2. Create the custom factory (only needs firestore now)
     val factory = remember {
-        EventsViewModelFactory(
-            clubId = hardcodedClubId,
-            db = firestore
-        )
+        EventsViewModelFactory(db = firestore) // 💡 Removed hardcoded clubId
     }
 
     // 3. Instantiate the ViewModel using the custom factory
@@ -49,7 +43,10 @@ fun EventsScreen(navController: NavHostController) {
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(ClubLeaderScreen.AddEvent.route) },
+                onClick = {
+                    // Pass clubId to AddEvent Screen if needed, or rely on AddEventViewModel's factory
+                    navController.navigate(ClubLeaderScreen.AddEvent.route)
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Event", tint = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -78,7 +75,7 @@ fun EventsScreen(navController: NavHostController) {
             // Subtitle showing club name
             if (uiState.clubName.isNotEmpty()) {
                 Text(
-                    text = "Events for ${uiState.clubName}",
+                    text = "Events for ${uiState.clubName}", // 💡 Dynamic clubName used here
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -139,6 +136,7 @@ fun EventsScreen(navController: NavHostController) {
     }
 }
 
+// ... (TabButton, EventListItem, and EventsBottomNav Composables remain unchanged) ...
 @Composable
 fun TabButton(
     title: String,

@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.example.clubapp.clubleader.data.repository.ClubService
+import kotlinx.coroutines.runBlocking
 
 // ------------------- VIEW MODEL -------------------
 
@@ -18,11 +20,20 @@ class ManageClubViewModel(
     private val db: FirebaseFirestore
 ) : ViewModel() {
 
+    // Initialize UiState with the received clubId. clubName is loaded async.
     private val _uiState = MutableStateFlow(ManageClubUiState(clubId = clubId))
     val uiState: StateFlow<ManageClubUiState> = _uiState
 
     init {
-        loadClubDetails()
+        // Only attempt to load details if a valid ID was found by the factory
+        if (clubId.isNotEmpty()) {
+            loadClubDetails()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "Club Leader data not found. Cannot manage club profile."
+            )
+        }
     }
 
     private fun loadClubDetails() {
@@ -54,6 +65,10 @@ class ManageClubViewModel(
     // --- Data Update Function ---
 
     fun saveClubDetails(name: String, description: String, meetingTime: String, newLogoUri: String? = null) {
+        if (clubId.isEmpty()) {
+            _uiState.value = _uiState.value.copy(error = "Cannot save: Club ID is missing.")
+            return
+        }
         if (name.isBlank() || description.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Club Name and Description cannot be empty.")
             return
@@ -71,7 +86,6 @@ class ManageClubViewModel(
                 )
 
                 // ⚠️ NOTE: Image upload logic would go here, updating the 'logoUrl' field.
-                // For now, we only update if a new URI is provided (stubbed)
                 newLogoUri?.let { updates["logoUrl"] = it }
 
                 // Execute the update
@@ -107,17 +121,34 @@ class ManageClubViewModel(
 // ------------------- VIEW MODEL FACTORY -------------------
 
 /**
- * Factory to create ManageClubViewModel with dependencies.
+ * Factory to create ManageClubViewModel. Dynamically fetches the club ID associated with the leader.
  */
 class ManageClubViewModelFactory(
-    private val clubId: String,
     private val db: FirebaseFirestore
 ) : ViewModelProvider.Factory {
+
+    private var dynamicClubId: String? = null
+
+    init {
+        val clubService = ClubService(db)
+        // runBlocking is required here for synchronous factory creation
+        runBlocking {
+            try {
+                val clubData = clubService.getClubByLeaderUid()
+                dynamicClubId = clubData?.second // The document ID is the clubId
+            } catch (e: Exception) {
+                println("ERROR: ManageClubViewModelFactory failed to fetch club ID for leader: ${e.message}")
+            }
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ManageClubViewModel::class.java)) {
-            return ManageClubViewModel(clubId, db) as T
+            // Pass the dynamically fetched club ID, using empty string if lookup failed.
+            val clubIdToUse = dynamicClubId ?: ""
+
+            return ManageClubViewModel(clubIdToUse, db) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

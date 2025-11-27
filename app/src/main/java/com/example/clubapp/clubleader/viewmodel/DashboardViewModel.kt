@@ -1,10 +1,9 @@
-package com.example.clubapp.clubleader.viewmodel // Adjust package as needed
+package com.example.clubapp.clubleader.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.clubapp.model.Club // Assuming your Club model is here
-import com.example.clubapp.model.Event // Assuming your Event model is here
+import com.example.clubapp.model.Club
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,19 +12,41 @@ import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import com.example.clubapp.clubleader.data.repository.ClubService // Assuming this import path
+import kotlinx.coroutines.runBlocking // Import runBlocking for factory
+
+// --- UiState is assumed to be defined elsewhere, e.g., ClubDashboardUiState ---
+data class ClubDashboardUiState(
+    val clubName: String = "",
+    val memberCount: Int = 0,
+    val eventCount: Int = 0,
+    val isLoading: Boolean = true,
+    val error: String? = null
+)
+
 
 // ------------------- VIEW MODEL -------------------
 
 class ClubDashboardViewModel(
-    private val clubId: String,
+    private val clubId: String, // Dynamic Club ID
+    private val clubName: String, // Dynamic Club Name
     private val db: FirebaseFirestore
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ClubDashboardUiState())
+    private val _uiState = MutableStateFlow(ClubDashboardUiState(clubName = clubName))
     val uiState: StateFlow<ClubDashboardUiState> = _uiState
 
     init {
-        loadDashboardData()
+        // Check if a club was found for the leader
+        if (clubId.isNotEmpty()) {
+            loadDashboardData()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "Club Leader data not found. Ensure your account is linked to a club.",
+                clubName = "Unlinked User"
+            )
+        }
     }
 
     private fun loadDashboardData() {
@@ -40,14 +61,13 @@ class ClubDashboardViewModel(
                 val eventCount = getUpcomingEventsCount(club.name)
 
                 _uiState.value = _uiState.value.copy(
-                    clubName = club.name,
+                    clubName = club.name, // Ensure this reflects the latest name from Firestore
                     memberCount = club.memberIds.size,
                     eventCount = eventCount,
                     isLoading = false
                 )
 
             } catch (e: Exception) {
-                // Check for specific error types (e.g., Club not found)
                 val errorMessage = when (e) {
                     is IllegalStateException -> e.message
                     else -> "Failed to load dashboard: ${e.message}"
@@ -65,7 +85,6 @@ class ClubDashboardViewModel(
         val clubDoc = db.collection("clubs").document(id).get().await()
 
         val club = clubDoc.toObject(Club::class.java)
-        // Check if document exists and can be mapped
             ?: throw IllegalStateException("Club document not found for ID: $id. Check if the ID exists in the 'clubs' collection.")
 
         return club
@@ -78,7 +97,6 @@ class ClubDashboardViewModel(
             .await()
 
         val today = LocalDate.now()
-        // Define the expected date format
         val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
         var upcomingCount = 0
@@ -88,12 +106,10 @@ class ClubDashboardViewModel(
             if (eventDateString != null) {
                 try {
                     val eventDate = LocalDate.parse(eventDateString, dateFormatter)
-                    // Check if event date is today or in the future
                     if (eventDate.isAfter(today) || eventDate.isEqual(today)) {
                         upcomingCount++
                     }
                 } catch (e: DateTimeParseException) {
-                    // Log date parsing errors
                     println("Date format error for event ${doc.id}: $eventDateString")
                 }
             }
@@ -105,17 +121,37 @@ class ClubDashboardViewModel(
 // ------------------- VIEW MODEL FACTORY -------------------
 
 /**
- * Factory to create ClubDashboardViewModel with dependencies for testing.
+ * Factory to create ClubDashboardViewModel. Fetches the club ID and name dynamically.
  */
 class ClubDashboardViewModelFactory(
-    private val clubId: String,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore // 💡 Only need the database instance now
 ) : ViewModelProvider.Factory {
+
+    private var dynamicClubId: String? = null
+    private var dynamicClubName: String? = null
+
+    init {
+        val clubService = ClubService(db)
+        // runBlocking is required here for synchronous factory creation
+        runBlocking {
+            try {
+                val clubData = clubService.getClubByLeaderUid()
+                dynamicClubId = clubData?.second
+                dynamicClubName = clubData?.first?.name
+            } catch (e: Exception) {
+                println("ERROR: ClubDashboardViewModelFactory failed to fetch club details for leader: ${e.message}")
+            }
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ClubDashboardViewModel::class.java)) {
-            return ClubDashboardViewModel(clubId, db) as T
+            // Pass the dynamically fetched values
+            val clubIdToUse = dynamicClubId ?: ""
+            val clubNameToUse = dynamicClubName ?: "Loading Club..." // Default placeholder
+
+            return ClubDashboardViewModel(clubIdToUse, clubNameToUse, db) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

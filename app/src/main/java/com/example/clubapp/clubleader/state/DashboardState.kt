@@ -1,4 +1,4 @@
-package com.example.clubapp.clubleader.viewmodel // Adjust package as needed
+package com.example.clubapp.clubleader.state // Adjust package as needed
 
 data class ClubDashboardUiState(
     val clubName: String = "Loading...",

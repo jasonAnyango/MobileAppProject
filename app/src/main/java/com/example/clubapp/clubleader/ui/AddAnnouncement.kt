@@ -27,18 +27,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun AddAnnouncementScreen(
     navController: NavHostController
 ) {
-    // ⚠️ HARDCODED DATA FOR TESTING ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-    val hardcodedClubName = "IEEE Student Branch"
-
     val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
-        AddAnnouncementViewModelFactory(
-            clubId = hardcodedClubId,
-            clubName = hardcodedClubName,
-            db = firestore
-        )
+        AddAnnouncementViewModelFactory(db = firestore)
     }
+
     val viewModel: AddAnnouncementViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
@@ -74,7 +69,7 @@ fun AddAnnouncementScreen(
 
             // ------------------ PAGE TITLE ------------------
             Text(
-                text = "New Announcement for ${uiState.clubName}",
+                text = "New Announcement for ${uiState.clubName}", // Uses dynamic club name
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -88,11 +83,25 @@ fun AddAnnouncementScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            // Check if club data is available to enable the form
+            val isFormEnabled = uiState.clubId.isNotEmpty() && !uiState.isSaving
+
+            if (!isFormEnabled && uiState.clubId.isEmpty()) {
+                Text(
+                    "Error: Your leader account is not linked to a club. Cannot publish announcements.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+
             // ------------------ TITLE INPUT ------------------
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = "Title"
+                label = "Title",
+                enabled = isFormEnabled
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -102,7 +111,8 @@ fun AddAnnouncementScreen(
                 value = description,
                 onValueChange = { description = it },
                 label = "Announcement Description",
-                minLines = 6
+                minLines = 6,
+                enabled = isFormEnabled
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -112,7 +122,7 @@ fun AddAnnouncementScreen(
                 onClick = {
                     viewModel.saveAnnouncement(title, description)
                 },
-                enabled = !uiState.isSaving, // Disable while saving
+                enabled = isFormEnabled, // Disable while saving or if clubId is missing
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -133,6 +143,7 @@ fun AddAnnouncementScreen(
         }
     }
 }
+
 @Composable
 fun AddAnnouncementBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route

@@ -41,16 +41,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun MembersScreen(navController: NavHostController) {
     var selectedTab by remember { mutableStateOf(0) }
 
-    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
-    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
-
     val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 💡 Simplified Factory instantiation 💡
     val factory = remember {
-        MembersViewModelFactory(
-            clubId = hardcodedClubId,
-            db = firestore
-        )
+        MembersViewModelFactory(db = firestore) // Removed hardcoded clubId
     }
+
     val viewModel: MembersViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
 
@@ -76,6 +73,7 @@ fun MembersScreen(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // 💡 Dynamic club name used here 💡
             if (uiState.clubName.isNotEmpty() && !uiState.isLoading) {
                 Text(
                     text = "${uiState.clubName} Management",
@@ -134,7 +132,7 @@ fun MembersScreen(navController: NavHostController) {
     }
 }
 
-// ------------------- LIST ITEMS -------------------
+// --- LIST ITEMS (Unchanged) ---
 
 @Composable
 fun MemberListItem(member: ClubMember) {
@@ -218,7 +216,7 @@ fun PendingRequestItem(
     }
 }
 
-// --- Reused Composable functions ---
+// --- Reused Composable functions (Unchanged) ---
 
 @Composable
 fun TabButton(

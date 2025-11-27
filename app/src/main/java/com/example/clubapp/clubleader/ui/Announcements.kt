@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,20 +34,16 @@ fun AnnouncementsScreen(navController: NavHostController) {
     }
 
     Scaffold(
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { AnnouncementsBottomNav(navController) }
     ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0D47A1),
-                            Color(0xFF42A5F5)
-                        )
-                    )
-                )
+                // Removed custom gradient background and Brush import
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(16.dp)
         ) {
@@ -58,39 +53,40 @@ fun AnnouncementsScreen(navController: NavHostController) {
                 text = "Announcements",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground // Default text color
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------ CREATE ANNOUNCEMENT BUTTON ------------------
             Button(
                 onClick = { navController.navigate(ClubLeaderScreen.AddAnnouncement.route) },
+                // Use default button colors (primary/onPrimary)
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50),
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(55.dp)
+                    .height(50.dp) // Reduced height slightly
             ) {
-                Text("Create Announcement", fontWeight = FontWeight.Bold)
+                Text("Create Announcement", fontWeight = FontWeight.SemiBold)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // ------------------ PAST ANNOUNCEMENTS ------------------
             Text(
                 text = "Past Announcements",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp), // Reduced spacing
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(pastAnnouncements) { announcement ->
@@ -108,29 +104,35 @@ fun AnnouncementItem(announcement: Announcement) {
             .fillMaxWidth()
             .wrapContentHeight(),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.92f)
-        )
+            // Use default surface color
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp) // Reduced padding
         ) {
             Text(
                 text = announcement.title,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = announcement.date,
-                color = Color.Gray
+                // Use secondary text color
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
+
 @Composable
 fun AnnouncementsBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

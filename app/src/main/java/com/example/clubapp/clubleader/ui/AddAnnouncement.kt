@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,20 +29,16 @@ fun AddAnnouncementScreen(
     var description by remember { mutableStateOf("") }
 
     Scaffold(
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { AddAnnouncementBottomNav(navController) }
     ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0D47A1),
-                            Color(0xFF42A5F5)
-                        )
-                    )
-                )
+                // Removed custom gradient background
+                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(16.dp)
@@ -54,26 +49,26 @@ fun AddAnnouncementScreen(
                 text = "New Announcement",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------ TITLE INPUT ------------------
-            StyledTextField(
+            BasicTextField(
                 value = title,
                 onValueChange = { title = it },
                 label = "Title"
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ------------------ DESCRIPTION INPUT ------------------
-            StyledTextField(
+            BasicTextField(
                 value = description,
                 onValueChange = { description = it },
                 label = "Announcement Description",
-                isLarge = true
+                minLines = 6 // Set minLines for a large field
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -81,13 +76,14 @@ fun AddAnnouncementScreen(
             // ------------------ PUBLISH BUTTON ------------------
             Button(
                 onClick = { onPublish() },
+                // Use default primary color for the main action button
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50),
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(55.dp)
+                    .height(50.dp)
             ) {
                 Text("Publish", fontWeight = FontWeight.Bold)
             }
@@ -96,41 +92,10 @@ fun AddAnnouncementScreen(
 }
 
 @Composable
-fun StyledTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    isLarge: Boolean = false
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = Color.Black) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (isLarge) 150.dp else 55.dp)
-            .background(
-                color = Color.White.copy(alpha = 0.9f),
-                shape = RoundedCornerShape(10.dp)
-            ),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.Black,
-            unfocusedTextColor = Color.Black,
-            cursorColor = Color.Black,
-            focusedContainerColor = Color.White.copy(alpha = 0.9f),
-            unfocusedContainerColor = Color.White.copy(alpha = 0.9f),
-            focusedBorderColor = Color.Transparent,
-            unfocusedBorderColor = Color.Transparent
-        ),
-        maxLines = if (isLarge) 5 else 1
-    )
-}
-
-
-@Composable
 fun AddAnnouncementBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

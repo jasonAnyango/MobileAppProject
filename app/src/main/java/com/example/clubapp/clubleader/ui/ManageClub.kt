@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 
@@ -29,6 +28,8 @@ import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
 fun ManageClubScreen(navController: NavHostController) {
 
     Scaffold(
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { ManageClubBottomNav(navController) }
     ) { innerPadding ->
 
@@ -47,32 +48,33 @@ fun ManageClubScreen(navController: NavHostController) {
             Text(
                 text = "Edit Club Profile",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ---------------- CLUB NAME ----------------
-            StyledTextField(
+            BasicTextField(
                 value = clubName,
                 onValueChange = { clubName = it },
                 label = "Club Name"
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ---------------- CLUB DESCRIPTION ----------------
-            StyledTextField(
+            BasicTextField(
                 value = clubDescription,
                 onValueChange = { clubDescription = it },
                 label = "Club Description",
-                isLarge = true
+                minLines = 4 // Control height via minLines
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ---------------- MEETING TIME ----------------
-            StyledTextField(
+            BasicTextField(
                 value = meetingTime,
                 onValueChange = { meetingTime = it },
                 label = "Meeting Time"
@@ -86,9 +88,9 @@ fun ManageClubScreen(navController: NavHostController) {
                 contentDescription = "Club Logo",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(100.dp) // Reduced size slightly
                     .align(Alignment.CenterHorizontally)
-                    .clip(CircleShape)
+                    .clip(CircleShape) // Kept for standard avatar shape
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -105,13 +107,14 @@ fun ManageClubScreen(navController: NavHostController) {
             // ---------------- SAVE BUTTON ----------------
             Button(
                 onClick = { /* Save changes */ },
+                // Use default primary color for the main action button
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50), // Green
-                    contentColor = Color.Black          // Black text
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(55.dp)
+                    .height(50.dp)
             ) {
                 Text("Save Changes", fontWeight = FontWeight.Bold)
             }
@@ -124,6 +127,7 @@ fun ManageClubScreen(navController: NavHostController) {
 fun ManageClubBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

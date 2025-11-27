@@ -12,25 +12,44 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
+import com.example.clubapp.model.Event
+import com.example.clubapp.clubleader.viewmodel.EventsViewModel
+import com.example.clubapp.clubleader.viewmodel.EventsViewModelFactory
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun EventsScreen(navController: NavHostController) {
     var selectedTab by remember { mutableStateOf(0) }
 
-    val upcomingEvents = listOf("Team Building", "Training", "Leaders Meeting")
-    val pastEvents = listOf("Orientation", "Welcome Party")
+    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
+    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
+
+    // 1. Get the Firestore instance
+    val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 2. Create the custom factory
+    val factory = remember {
+        EventsViewModelFactory(
+            clubId = hardcodedClubId,
+            db = firestore
+        )
+    }
+
+    // 3. Instantiate the ViewModel using the custom factory
+    val viewModel: EventsViewModel = viewModel(factory = factory)
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        // Use default theme background color
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate(ClubLeaderScreen.AddEvent.route) },
-                // Use primary container color and onPrimary tint
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Event", tint = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -39,44 +58,51 @@ fun EventsScreen(navController: NavHostController) {
         bottomBar = { EventsBottomNav(navController) }
     ) { padding ->
 
-        // Removed custom gradient background Box
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp) // Reduced padding
+                .padding(16.dp)
         ) {
 
             // ------------------ TITLE ------------------
             Text(
                 text = "Events",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground // Default text color
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Subtitle showing club name
+            if (uiState.clubName.isNotEmpty()) {
+                Text(
+                    text = "Events for ${uiState.clubName}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------ TABS ------------------
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 0.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp) // Use spacing instead of space evenly
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 TabButton(
-                    title = "Upcoming",
+                    title = "Upcoming (${uiState.upcomingEvents.size})",
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    // Using primary color for active state indication
                     activeColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
 
                 TabButton(
-                    title = "Past",
+                    title = "Past (${uiState.pastEvents.size})",
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    // Using secondary color for active state indication
                     activeColor = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
@@ -85,13 +111,28 @@ fun EventsScreen(navController: NavHostController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------ EVENTS LIST ------------------
-            val eventsToShow = if (selectedTab == 0) upcomingEvents else pastEvents
+            if (uiState.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else if (uiState.error != null) {
+                Text("Error: ${uiState.error}", color = MaterialTheme.colorScheme.error)
+            } else {
+                val eventsToShow = if (selectedTab == 0) uiState.upcomingEvents else uiState.pastEvents
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp) // Reduced spacing
-            ) {
-                items(eventsToShow) { event ->
-                    EventListItem(event)
+                if (eventsToShow.isEmpty()) {
+                    Text(
+                        text = "No ${if (selectedTab == 0) "upcoming" else "past"} events found for ${uiState.clubName}.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(eventsToShow) { event ->
+                            EventListItem(event)
+                        }
+                    }
                 }
             }
         }
@@ -109,46 +150,67 @@ fun TabButton(
     val bgColor = if (selected) activeColor else MaterialTheme.colorScheme.surfaceVariant
     val textColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
 
-    Box(
-        modifier = modifier
-            // Removed clip
-            .background(bgColor)
-            .padding(vertical = 10.dp)
-            .clickable { onClick() }
-            .fillMaxWidth(), // Ensure button fills its weighted space
-        contentAlignment = Alignment.Center
+    Card(
+        modifier = modifier.clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 4.dp else 1.dp)
     ) {
-        Text(text = title, color = textColor, style = MaterialTheme.typography.labelLarge)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = title, color = textColor, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
 @Composable
-fun EventListItem(eventName: String) {
+fun EventListItem(event: Event) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        // Use default surface color
+        modifier = Modifier.fillMaxWidth().clickable { /* TODO: Navigate to Event Details */ },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        // Use default elevation
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        // Removed custom shape
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
             modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
         ) {
-            Icon(
-                Icons.Default.Event,
-                contentDescription = null,
-                // Use default primary color
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = eventName,
-                style = MaterialTheme.typography.bodyLarge,
-                // Use default onSurface color
-                color = MaterialTheme.colorScheme.onSurface
+                text = event.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = event.date,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = event.location,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -157,7 +219,6 @@ fun EventListItem(eventName: String) {
 fun EventsBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    // NavigationBar uses default theme colors, so no changes needed here other than icon changes
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

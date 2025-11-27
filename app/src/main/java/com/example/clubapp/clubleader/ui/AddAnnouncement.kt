@@ -3,7 +3,6 @@ package com.example.clubapp.clubleader.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
@@ -12,24 +11,54 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
+import com.example.clubapp.clubleader.viewmodel.AddAnnouncementViewModel
+import com.example.clubapp.clubleader.viewmodel.AddAnnouncementViewModelFactory
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun AddAnnouncementScreen(
-    navController: NavHostController,
-    onPublish: () -> Unit = {}
+    navController: NavHostController
 ) {
+    // ⚠️ HARDCODED DATA FOR TESTING ⚠️
+    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
+    val hardcodedClubName = "IEEE Student Branch"
+
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val factory = remember {
+        AddAnnouncementViewModelFactory(
+            clubId = hardcodedClubId,
+            clubName = hardcodedClubName,
+            db = firestore
+        )
+    }
+    val viewModel: AddAnnouncementViewModel = viewModel(factory = factory)
+    val uiState by viewModel.uiState.collectAsState()
+
+    // Form state variables
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
+    // Side effect to handle navigation after successful save
+    LaunchedEffect(uiState.saveSuccess) {
+        if (uiState.saveSuccess) {
+            // Navigate back to the Announcements list
+            navController.navigate(ClubLeaderScreen.Announcements.route) {
+                // Remove this screen from the back stack
+                popUpTo(ClubLeaderScreen.Announcements.route) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
     Scaffold(
-        // Use default theme background color
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { AddAnnouncementBottomNav(navController) }
     ) { padding ->
@@ -37,7 +66,6 @@ fun AddAnnouncementScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Removed custom gradient background
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
@@ -46,13 +74,19 @@ fun AddAnnouncementScreen(
 
             // ------------------ PAGE TITLE ------------------
             Text(
-                text = "New Announcement",
+                text = "New Announcement for ${uiState.clubName}",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Error Message Display
+            uiState.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // ------------------ TITLE INPUT ------------------
             BasicTextField(
@@ -68,15 +102,17 @@ fun AddAnnouncementScreen(
                 value = description,
                 onValueChange = { description = it },
                 label = "Announcement Description",
-                minLines = 6 // Set minLines for a large field
+                minLines = 6
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
             // ------------------ PUBLISH BUTTON ------------------
             Button(
-                onClick = { onPublish() },
-                // Use default primary color for the main action button
+                onClick = {
+                    viewModel.saveAnnouncement(title, description)
+                },
+                enabled = !uiState.isSaving, // Disable while saving
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -85,17 +121,22 @@ fun AddAnnouncementScreen(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("Publish", fontWeight = FontWeight.Bold)
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text("Publish", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
-
 @Composable
 fun AddAnnouncementBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

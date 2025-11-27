@@ -18,7 +18,7 @@ import com.example.clubapp.clubleader.ui.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClubLeaderNavGraph(
-    onLogout: () -> Unit // <--- 1. We added this parameter so they can Log Out
+    onLogout: () -> Unit // Logout function passed from the main activity/host
 ) {
     val navController = rememberNavController()
 
@@ -26,23 +26,30 @@ fun ClubLeaderNavGraph(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // The Dashboard is the "Home", so it shouldn't have a back arrow
-    val isDashboard = currentRoute == ClubLeaderScreen.Dashboard.route
+    // Define the routes that should not have a "Back" button (usually the main bottom nav screens)
+    val noBackRoutes = setOf(
+        ClubLeaderScreen.Dashboard.route,
+        ClubLeaderScreen.Events.route,
+        ClubLeaderScreen.Members.route,
+        ClubLeaderScreen.Announcements.route
+    )
+
+    val showBackArrow = currentRoute != null && currentRoute !in noBackRoutes
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Club Portal") },
                 navigationIcon = {
-                    // Show Back Arrow ONLY if NOT on the Dashboard
-                    if (!isDashboard) {
+                    // Show Back Arrow ONLY if the current route is NOT a main nav screen
+                    if (showBackArrow) {
                         IconButton(onClick = { navController.popBackStack() }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
                 actions = {
-                    // 2. The Logout Button (Always visible)
+                    // The Logout Button (Always visible)
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
                     }
@@ -62,19 +69,14 @@ fun ClubLeaderNavGraph(
             modifier = Modifier.padding(innerPadding)
         ) {
 
+            // --- MAIN NAVIGATION ROUTES ---
+
             composable(ClubLeaderScreen.Dashboard.route) {
                 ClubLeaderDashboardScreen(navController = navController)
             }
 
             composable(ClubLeaderScreen.Events.route) {
                 EventsScreen(navController = navController)
-            }
-
-            composable(ClubLeaderScreen.AddEvent.route) {
-                AddEventScreen(
-                    navController = navController,
-                    onPublish = { navController.popBackStack() } // Return to Events list
-                )
             }
 
             composable(ClubLeaderScreen.Members.route) {
@@ -85,14 +87,22 @@ fun ClubLeaderNavGraph(
                 AnnouncementsScreen(navController = navController)
             }
 
+            // --- SUB-SCREENS (Form and Management) ---
+
+            composable(ClubLeaderScreen.AddEvent.route) {
+                // IMPORTANT: The AddEventScreen now handles its own navigation back
+                // to Events via the ViewModel success state (using LaunchedEffect).
+                AddEventScreen(navController = navController)
+            }
+
             composable(ClubLeaderScreen.AddAnnouncement.route) {
-                AddAnnouncementScreen(
-                    navController = navController,
-                    onPublish = { navController.popBackStack() } // Return to Announcements list
-                )
+                // Assuming AddAnnouncementScreen uses the same ViewModel/LaunchedEffect pattern
+                // to navigate back to Announcements on publish success.
+                AddAnnouncementScreen(navController = navController)
             }
 
             composable(ClubLeaderScreen.ManageClub.route) {
+                // Placeholder for the Club Settings/Management screen
                 ManageClubScreen(navController = navController)
             }
         }

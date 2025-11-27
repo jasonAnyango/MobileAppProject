@@ -9,6 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,35 +20,55 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
+import com.google.firebase.firestore.FirebaseFirestore // Import Firestore
+import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModel // Assuming this package structure
+import com.example.clubapp.clubleader.viewmodel.ClubDashboardViewModelFactory // Assuming this package structure
 
 @Composable
 fun ClubLeaderDashboardScreen(
     navController: NavHostController
 ) {
+    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
+    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
+
+    // 1. Get the Firestore instance
+    val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // 2. Create the custom factory
+    val factory = remember {
+        ClubDashboardViewModelFactory(
+            clubId = hardcodedClubId,
+            db = firestore
+        )
+    }
+
+    // 3. Instantiate the ViewModel using the custom factory
+    val viewModel: ClubDashboardViewModel = viewModel(factory = factory)
+
+    // Collect the StateFlow from the ViewModel
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         bottomBar = { ClubLeaderBottomNavigation(navController) },
-        // Container color is now the default theme background
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
 
-        // --- FIX IMPLEMENTED HERE: Define the list inside the @Composable function ---
         val managementItems = listOf(
             Triple("Manage Members", Icons.Default.Group, MaterialTheme.colorScheme.primary),
             Triple("Create Event", Icons.Default.AddCircle, MaterialTheme.colorScheme.secondary),
             Triple("Edit Club Info", Icons.Default.Edit, Color(0xFF10B981)),
             Triple("Club Announcements", Icons.Default.Notifications, MaterialTheme.colorScheme.tertiary)
         )
-        // --------------------------------------------------------------------------
 
         LazyColumn(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 20.dp) // Reduced padding slightly
+                .padding(horizontal = 16.dp, vertical = 20.dp)
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -55,93 +78,118 @@ fun ClubLeaderDashboardScreen(
                     text = "Club Dashboard",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground // Default text color
-                )
-            }
-
-            // CLUB IMAGE & NAME
-            item {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Image with default styling
-                    Image(
-                        painter = painterResource(id = R.drawable.tennis_club),
-                        contentDescription = "Club Logo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(100.dp) // Slightly smaller
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Strathmore Tennis Team",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.W600,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-            }
-
-            // DASHBOARD CARDS
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp) // Reduced spacing
-                ) {
-                    DashboardCard(
-                        title = "Members",
-                        value = "48",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DashboardCard(
-                        title = "Events",
-                        value = "3",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // MANAGEMENT TITLE
-            item {
-                Text(
-                    text = "Management",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
-            // MANAGEMENT LIST ITEMS
-            items(managementItems) { (title, icon, color) -> // Using the defined val
-                ManagementListItem(
-                    title = title,
-                    icon = icon,
-                    iconColor = color,
-                    onClick = {
-                        when (title) {
-                            "Manage Members" -> navController.navigate(ClubLeaderScreen.Members.route)
-                            "Create Event" -> navController.navigate(ClubLeaderScreen.AddEvent.route)
-                            "Edit Club Info" -> navController.navigate(ClubLeaderScreen.ManageClub.route)
-                            "Club Announcements" -> navController.navigate(ClubLeaderScreen.Announcements.route)
-                        }
+            // --- Loading and Error State Handling ---
+            if (uiState.isLoading) {
+                item {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("Loading data...", color = MaterialTheme.colorScheme.primary)
+                }
+            } else if (uiState.error != null) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Error: ${uiState.error}",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp)
+                        )
                     }
-                )
+                }
+            } else {
+                // --- Successful Data Display ---
+
+                // CLUB IMAGE & NAME
+                item {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.club_default),
+                            contentDescription = "Club Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(100.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            // DYNAMIC CLUB NAME
+                            text = uiState.clubName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.W600,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+
+                // DASHBOARD CARDS
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        DashboardCard(
+                            title = "Members",
+                            // DYNAMIC MEMBER COUNT
+                            value = uiState.memberCount.toString(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardCard(
+                            title = "Events",
+                            // DYNAMIC EVENT COUNT
+                            value = uiState.eventCount.toString(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // MANAGEMENT TITLE
+                item {
+                    Text(
+                        text = "Management",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                // MANAGEMENT LIST ITEMS
+                items(managementItems) { (title, icon, color) ->
+                    ManagementListItem(
+                        title = title,
+                        icon = icon,
+                        iconColor = color,
+                        onClick = {
+                            when (title) {
+                                "Manage Members" -> navController.navigate(ClubLeaderScreen.Members.route)
+                                "Create Event" -> navController.navigate(ClubLeaderScreen.AddEvent.route)
+                                "Edit Club Info" -> navController.navigate(ClubLeaderScreen.ManageClub.route)
+                                "Club Announcements" -> navController.navigate(ClubLeaderScreen.Announcements.route)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
 }
 
-// BASIC DASHBOARD CARD
+
+// --- SUPPORTING COMPOSABLES (Same as before) ---
+
 @Composable
 fun DashboardCard(title: String, value: String, modifier: Modifier = Modifier) {
     Card(
-        modifier = modifier.height(110.dp), // Reduced height
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), // Default surface color
-        elevation = CardDefaults.cardElevation(2.dp), // Reduced elevation
-        // Removed custom shape
+        modifier = modifier.height(110.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) { // Reduced padding
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(6.dp))
             Text(
@@ -153,7 +201,6 @@ fun DashboardCard(title: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
-// BASIC MANAGEMENT LIST ITEM
 @Composable
 fun ManagementListItem(
     title: String,
@@ -165,25 +212,21 @@ fun ManagementListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        // Removed custom shape
-        elevation = CardDefaults.cardElevation(1.dp) // Minimal elevation
+        elevation = CardDefaults.cardElevation(1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp), // Reduced padding
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
             Box(
-                modifier = Modifier
-                    .size(40.dp) // Reduced size
-                // Removed custom clip and background
-                ,
+                modifier = Modifier.size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = iconColor // Icon color remains for identification
+                    tint = iconColor
                 )
             }
 
@@ -199,11 +242,8 @@ fun ManagementListItem(
     }
 }
 
-
-// BOTTOM NAV - No major styling changes needed, as NavigationBar uses theme defaults
 @Composable
 fun ClubLeaderBottomNavigation(navController: NavHostController) {
-
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     NavigationBar {

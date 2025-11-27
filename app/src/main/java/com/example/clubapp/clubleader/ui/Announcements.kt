@@ -1,6 +1,7 @@
 package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,30 +12,41 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
+import com.example.clubapp.clubleader.viewmodel.AnnouncementsViewModel
+import com.example.clubapp.clubleader.viewmodel.AnnouncementsViewModelFactory
+import com.example.clubapp.model.Announcement
+import com.google.firebase.firestore.FirebaseFirestore
 
-data class Announcement(val title: String, val date: String)
+// Removed placeholder data class Announcement
 
 @Composable
 fun AnnouncementsScreen(navController: NavHostController) {
 
-    val pastAnnouncements = remember {
-        listOf(
-            Announcement("Team Meeting", "2025-11-10"),
-            Announcement("Club Outing", "2025-11-05"),
-            Announcement("New Member Induction", "2025-10-28")
+    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
+    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
+
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val factory = remember {
+        AnnouncementsViewModelFactory(
+            clubId = hardcodedClubId,
+            db = firestore
         )
     }
+    val viewModel: AnnouncementsViewModel = viewModel(factory = factory)
+    val uiState by viewModel.uiState.collectAsState()
+
 
     Scaffold(
-        // Use default theme background color
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { AnnouncementsBottomNav(navController) }
     ) { padding ->
@@ -42,7 +54,6 @@ fun AnnouncementsScreen(navController: NavHostController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Removed custom gradient background and Brush import
                 .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(16.dp)
@@ -53,44 +64,68 @@ fun AnnouncementsScreen(navController: NavHostController) {
                 text = "Announcements",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground // Default text color
+                color = MaterialTheme.colorScheme.onBackground
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Subtitle showing club name
+            if (uiState.clubName.isNotEmpty() && !uiState.isLoading) {
+                Text(
+                    text = "Posted by ${uiState.clubName}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------ CREATE ANNOUNCEMENT BUTTON ------------------
             Button(
-                onClick = { navController.navigate(ClubLeaderScreen.AddAnnouncement.route) },
-                // Use default button colors (primary/onPrimary)
+                onClick = {
+                    // TODO: Implement logic to handle navigation to AddAnnouncement screen
+                    navController.navigate(ClubLeaderScreen.AddAnnouncement.route)
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp) // Reduced height slightly
+                    .height(50.dp)
             ) {
                 Text("Create Announcement", fontWeight = FontWeight.SemiBold)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ------------------ PAST ANNOUNCEMENTS ------------------
-            Text(
-                text = "Past Announcements",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            // ------------------ ANNOUNCEMENTS LIST & LOADING/ERROR ------------------
+            if (uiState.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("Loading announcements...", color = MaterialTheme.colorScheme.primary)
+            } else if (uiState.error != null) {
+                Text("Error: ${uiState.error}", color = MaterialTheme.colorScheme.error)
+            } else {
+                Text(
+                    text = "Latest Announcements",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp), // Reduced spacing
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(pastAnnouncements) { announcement ->
-                    AnnouncementItem(announcement)
+                if (uiState.announcements.isEmpty()) {
+                    Text("No announcements posted yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(uiState.announcements) { announcement ->
+                            AnnouncementItem(announcement)
+                        }
+                    }
                 }
             }
         }
@@ -102,15 +137,15 @@ fun AnnouncementItem(announcement: Announcement) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight(),
+            .wrapContentHeight()
+            .clickable { /* TODO: Navigate to Announcement Details */ },
         colors = CardDefaults.cardColors(
-            // Use default surface color
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp) // Reduced padding
+            modifier = Modifier.padding(12.dp)
         ) {
             Text(
                 text = announcement.title,
@@ -119,8 +154,8 @@ fun AnnouncementItem(announcement: Announcement) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = announcement.date,
-                // Use secondary text color
+                // Assuming the announcement model has a 'date' field
+                text = "Posted on: ${announcement.date}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -132,7 +167,6 @@ fun AnnouncementItem(announcement: Announcement) {
 fun AnnouncementsBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

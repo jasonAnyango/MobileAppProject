@@ -3,7 +3,9 @@ package com.example.clubapp.clubleader.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
@@ -14,34 +16,76 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.clubapp.R
 import com.example.clubapp.clubleader.navigation.ClubLeaderScreen
+import com.example.clubapp.clubleader.viewmodel.ManageClubViewModel
+import com.example.clubapp.clubleader.viewmodel.ManageClubViewModelFactory
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun ManageClubScreen(navController: NavHostController) {
 
+    // ⚠️ HARDCODED CLUB ID FOR TESTING WORKFLOW ⚠️
+    val hardcodedClubId = "cQqHqt95G2xmiCRxlrP2"
+
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val factory = remember { ManageClubViewModelFactory(clubId = hardcodedClubId, db = firestore) }
+    val viewModel: ManageClubViewModel = viewModel(factory = factory)
+    val uiState by viewModel.uiState.collectAsState()
+
+    // Local state to hold form input (initialized from UiState)
+    var clubName by remember { mutableStateOf("") }
+    var clubDescription by remember { mutableStateOf("") }
+    var meetingTime by remember { mutableStateOf("") }
+
+    // Update local state when ViewModel state changes (i.e., when data is loaded)
+    LaunchedEffect(uiState.clubName, uiState.clubDescription, uiState.meetingTime) {
+        if (uiState.clubName.isNotEmpty() && clubName.isEmpty() && !uiState.isLoading) {
+            clubName = uiState.clubName
+            clubDescription = uiState.clubDescription
+            meetingTime = uiState.meetingTime
+        }
+    }
+
+    // State for Snackbar feedback
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show success feedback
+    LaunchedEffect(uiState.saveSuccess) {
+        if (uiState.saveSuccess) {
+            snackbarHostState.showSnackbar(
+                message = "Club details saved successfully!",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
     Scaffold(
-        // Use default theme background color
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) }, // Attach SnackbarHost
         bottomBar = { ManageClubBottomNav(navController) }
     ) { innerPadding ->
 
-        var clubName by remember { mutableStateOf("") }
-        var clubDescription by remember { mutableStateOf("") }
-        var meetingTime by remember { mutableStateOf("") }
+        if (uiState.isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
 
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
 
             // ---------------- PAGE TITLE ----------------
@@ -54,50 +98,62 @@ fun ManageClubScreen(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Error Message Display
+            uiState.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+
             // ---------------- CLUB NAME ----------------
-            BasicTextField(
+            OutlinedTextField(
                 value = clubName,
                 onValueChange = { clubName = it },
-                label = "Club Name"
+                label = { Text("Club Name") },
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // ---------------- CLUB DESCRIPTION ----------------
-            BasicTextField(
+            OutlinedTextField(
                 value = clubDescription,
                 onValueChange = { clubDescription = it },
-                label = "Club Description",
-                minLines = 4 // Control height via minLines
+                label = { Text("Club Description") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // ---------------- MEETING TIME ----------------
-            BasicTextField(
+            OutlinedTextField(
                 value = meetingTime,
                 onValueChange = { meetingTime = it },
-                label = "Meeting Time"
+                label = { Text("Meeting Time") },
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // ---------------- CLUB LOGO ----------------
+            // In a real app, this would use Coil/Glide to load uiState.logoUrl
             Image(
-                painter = painterResource(id = R.drawable.tennis_club),
+                painter = painterResource(id = R.drawable.club_default), // Placeholder
                 contentDescription = "Club Logo",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(100.dp) // Reduced size slightly
+                    .size(100.dp)
                     .align(Alignment.CenterHorizontally)
-                    .clip(CircleShape) // Kept for standard avatar shape
+                    .clip(CircleShape)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
-                onClick = { /* TODO open image picker */ },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                onClick = { /* TODO: Open image picker and update ViewModel */ },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                enabled = !uiState.isSaving
             ) {
                 Text("Change Logo")
             }
@@ -106,8 +162,10 @@ fun ManageClubScreen(navController: NavHostController) {
 
             // ---------------- SAVE BUTTON ----------------
             Button(
-                onClick = { /* Save changes */ },
-                // Use default primary color for the main action button
+                onClick = {
+                    viewModel.saveClubDetails(clubName, clubDescription, meetingTime)
+                },
+                enabled = !uiState.isSaving, // Disable while saving
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -116,18 +174,26 @@ fun ManageClubScreen(navController: NavHostController) {
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("Save Changes", fontWeight = FontWeight.Bold)
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text("Save Changes", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
 
 
+// Removed BasicTextField as OutlinedTextField is used directly in the updated Composable
+
 @Composable
 fun ManageClubBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

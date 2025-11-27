@@ -16,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,20 +45,16 @@ fun MembersScreen(navController: NavHostController) {
     )
 
     Scaffold(
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { MembersBottomNav(navController) }
     ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0D47A1),
-                            Color(0xFF42A5F5)
-                        )
-                    )
-                )
+                // Removed custom gradient background
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(16.dp)
         ) {
@@ -68,10 +63,10 @@ fun MembersScreen(navController: NavHostController) {
                 text = "Members",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground // Default text color
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ------------------- TABS -------------------
             Row(
@@ -82,24 +77,24 @@ fun MembersScreen(navController: NavHostController) {
                     title = "All Members",
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    activeColor = Color.White,
-                    inactiveColor = Color(0xFFB3E5FC)
+                    // Removed custom active/inactive colors
+                    modifier = Modifier.weight(1f)
                 )
                 TabButton(
                     title = "Pending Requests",
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    activeColor = Color.White,
-                    inactiveColor = Color(0xFFB3E5FC)
+                    // Removed custom active/inactive colors
+                    modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             val membersToShow = if (selectedTab == 0) allMembers else pendingMembers
 
             // Scrollable list
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(membersToShow) { member ->
                     MemberListItem(member)
                 }
@@ -108,19 +103,24 @@ fun MembersScreen(navController: NavHostController) {
     }
 }
 
+
 @Composable
 fun MemberListItem(member: Member) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.9f)
-        )
+            // Use default surface color
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(12.dp)
         ) {
+            // NOTE: The `Image` Composable requires the `clip(CircleShape)` for profile image styling.
+            // This is a style, but is often essential for profile avatars, so it's left minimal.
             Image(
                 painter = painterResource(id = member.profileRes),
                 contentDescription = "Profile",
@@ -129,11 +129,11 @@ fun MemberListItem(member: Member) {
                     .clip(CircleShape)
             )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column {
-                Text(member.name, fontWeight = FontWeight.Bold)
-                Text(member.role, color = Color.Gray)
+                Text(member.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(member.role, color = MaterialTheme.colorScheme.onSurfaceVariant) // Use secondary text color
             }
         }
     }
@@ -179,14 +179,18 @@ fun TabButton(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
-    activeColor: Color = Color.White,
-    inactiveColor: Color = Color.LightGray
+    modifier: Modifier = Modifier
 ) {
-    TextButton(onClick = onClick) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier
+    ) {
         Text(
             text = title,
-            color = if (selected) activeColor else inactiveColor,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            // Use primary for selected, onSurface for unselected
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            style = MaterialTheme.typography.labelLarge
         )
     }
 }

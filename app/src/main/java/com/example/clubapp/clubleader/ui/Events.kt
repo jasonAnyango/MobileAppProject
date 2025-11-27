@@ -11,8 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -27,138 +25,139 @@ fun EventsScreen(navController: NavHostController) {
     val pastEvents = listOf("Orientation", "Welcome Party")
 
     Scaffold(
-        containerColor = Color.Transparent,
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate(ClubLeaderScreen.AddEvent.route) },
-                containerColor = Color(0xFF3B82F6)
+                // Use primary container color and onPrimary tint
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Event", tint = Color.White)
+                Icon(Icons.Default.Add, contentDescription = "Add Event", tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         },
         bottomBar = { EventsBottomNav(navController) }
     ) { padding ->
 
-        // 🔥 GRADIENT BACKGROUND
-        Box(
+        // Removed custom gradient background Box
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF1E3A8A),
-                            Color(0xFF3B82F6),
-                            Color(0xFF8B5CF6),
-                            Color(0xFFEF4444)
-                        )
-                    )
-                )
+                .padding(padding)
+                .padding(16.dp) // Reduced padding
         ) {
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(20.dp)
-            ) {
+            // ------------------ TITLE ------------------
+            Text(
+                text = "Events",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground // Default text color
+            )
 
-                // ------------------ TITLE ------------------
-                Text(
-                    text = "Events",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ------------------ TABS ------------------
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 0.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Use spacing instead of space evenly
+            ) {
+                TabButton(
+                    title = "Upcoming",
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    // Using primary color for active state indication
+                    activeColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                TabButton(
+                    title = "Past",
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    // Using secondary color for active state indication
+                    activeColor = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-                // ------------------ TABS ------------------
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    TabButton(
-                        title = "Upcoming",
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        activeColor = Color(0xFF3B82F6)
-                    )
+            Spacer(modifier = Modifier.height(16.dp))
 
-                    TabButton(
-                        title = "Past",
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        activeColor = Color(0xFF10B981)
-                    )
-                }
+            // ------------------ EVENTS LIST ------------------
+            val eventsToShow = if (selectedTab == 0) upcomingEvents else pastEvents
 
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ------------------ EVENTS LIST ------------------
-                val eventsToShow = if (selectedTab == 0) upcomingEvents else pastEvents
-
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(eventsToShow) { event ->
-                        EventListItem(event)
-                    }
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Reduced spacing
+            ) {
+                items(eventsToShow) { event ->
+                    EventListItem(event)
                 }
             }
         }
     }
 }
 
-
 @Composable
-fun TabButton(title: String, selected: Boolean, onClick: () -> Unit, activeColor: Color) {
-    val bgColor = if (selected) activeColor.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.2f)
-    val textColor = if (selected) Color.White else Color.White.copy(alpha = 0.8f)
+fun TabButton(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    activeColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val bgColor = if (selected) activeColor else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.medium)
+        modifier = modifier
+            // Removed clip
             .background(bgColor)
-            .padding(vertical = 10.dp, horizontal = 22.dp)
+            .padding(vertical = 10.dp)
             .clickable { onClick() }
+            .fillMaxWidth(), // Ensure button fills its weighted space
+        contentAlignment = Alignment.Center
     ) {
-        Text(text = title, color = textColor)
+        Text(text = title, color = textColor, style = MaterialTheme.typography.labelLarge)
     }
 }
-
 
 @Composable
 fun EventListItem(eventName: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        // Use default surface color
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        // Use default elevation
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Removed custom shape
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(vertical = 16.dp, horizontal = 20.dp)
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
         ) {
             Icon(
                 Icons.Default.Event,
                 contentDescription = null,
-                tint = Color(0xFF3B82F6)
+                // Use default primary color
+                tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = eventName,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF1E1E1E)
+                // Use default onSurface color
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
 }
 
-
 @Composable
 fun EventsBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    // NavigationBar uses default theme colors, so no changes needed here other than icon changes
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

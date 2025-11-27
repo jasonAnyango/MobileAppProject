@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -40,19 +38,15 @@ fun AddEventScreen(
     var description by remember { mutableStateOf("") }
 
     Scaffold(
+        // Use default theme background color
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { AddEventBottomNav(navController) }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0D47A1),
-                            Color(0xFF42A5F5)
-                        )
-                    )
-                )
+                // Removed custom gradient background
+                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(16.dp)
@@ -63,38 +57,38 @@ fun AddEventScreen(
                 text = "Add Event",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // ------------------ INPUT FIELDS ------------------
-            StyledTextField(
+            // ------------------ INPUT FIELDS (Replaced StyledTextField with OutlinedTextField) ------------------
+            BasicTextField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
                 label = "Event Title"
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            StyledTextField(
+            BasicTextField(
                 value = eventDateTime,
                 onValueChange = { eventDateTime = it },
                 label = "Date and Time"
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            StyledTextField(
+            BasicTextField(
                 value = location,
                 onValueChange = { location = it },
                 label = "Location"
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            StyledTextField(
+            BasicTextField(
                 value = description,
                 onValueChange = { description = it },
                 label = "Description",
-                isLarge = true
+                minLines = 4 // Set minimum lines for a large description field
             )
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -103,8 +97,8 @@ fun AddEventScreen(
                 painter = painterResource(id = R.drawable.tennis_club),
                 contentDescription = "Event Poster",
                 modifier = Modifier
-                    .size(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(100.dp) // Reduced size
+                    .clip(RoundedCornerShape(8.dp)) // Reduced radius
                     .align(Alignment.CenterHorizontally),
                 contentScale = ContentScale.Crop
             )
@@ -113,6 +107,7 @@ fun AddEventScreen(
 
             Button(
                 onClick = { /* TODO: open image picker */ },
+                // Use default button colors
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
@@ -125,13 +120,14 @@ fun AddEventScreen(
             // ------------------ PUBLISH EVENT BUTTON ------------------
             Button(
                 onClick = { onPublish() },
+                // Use default primary color for the main action button
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50),
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(55.dp)
+                    .height(50.dp)
             ) {
                 Text("Add Event", fontWeight = FontWeight.Bold)
             }
@@ -139,11 +135,33 @@ fun AddEventScreen(
     }
 }
 
+// Custom Composable to mimic the behavior of a labeled text field without custom styling
+@Composable
+fun BasicTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    minLines: Int = 1
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = minLines,
+        // Use default theme colors
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        )
+    )
+}
 
 @Composable
 fun AddEventBottomNav(navController: NavHostController) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
+    // NavigationBar uses default theme colors
     NavigationBar {
         NavigationBarItem(
             selected = currentRoute == ClubLeaderScreen.Dashboard.route,

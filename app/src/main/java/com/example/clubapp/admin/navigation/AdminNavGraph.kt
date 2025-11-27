@@ -2,39 +2,39 @@ package com.example.clubapp.admin.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.ExitToApp // Logout Icon
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.example.clubapp.admin.ui.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
-// Import your UI screens
-import com.example.clubapp.admin.ui.* @OptIn(ExperimentalMaterial3Api::class)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminNavGraph(
-    onLogout: () -> Unit // Pass the logout function here
+    onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
 
-    // Get current route to determine TopBar/BottomBar state
+    // Track current route
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Define which screens are "Top Level" (Show Bottom Bar, No Back Arrow)
-    // We check against YOUR AdminScreen routes
+    // Top-level routes (no back arrow)
     val topLevelRoutes = listOf(
         AdminScreen.Dashboard.route,
         AdminScreen.AllClubs.route,
@@ -43,44 +43,67 @@ fun AdminNavGraph(
         AdminScreen.Reports.route
     )
 
-    // Dynamic Title Logic
+    // Logout confirmation dialog state
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // Nice professional titles
     val currentTitle = when {
-        currentRoute == AdminScreen.Dashboard.route -> "Dashboard"
-        currentRoute == AdminScreen.AllClubs.route -> "Club Management"
-        currentRoute == AdminScreen.AllUsers.route -> "User Management"
+        currentRoute == AdminScreen.Dashboard.route -> "Admin Dashboard"
+        currentRoute == AdminScreen.AllClubs.route -> "Clubs"
+        currentRoute == AdminScreen.AllUsers.route -> "Users"
         currentRoute == AdminScreen.AllEvents.route -> "Events"
-        currentRoute == AdminScreen.Reports.route -> "Reports"
-        // Check for contain matches for details screens
-        currentRoute?.contains("club_details") == true -> "Club Details"
-        currentRoute?.contains("user_details") == true -> "User Profile"
-        currentRoute?.contains("event_details") == true -> "Event Details"
-        currentRoute?.contains("application") == true -> "Application Review"
+        currentRoute == AdminScreen.Reports.route -> "Reports & Analytics"
+        currentRoute?.contains("club_details") == true -> "Club Overview"
+        currentRoute?.contains("user_details") == true -> "User Overview"
+        currentRoute?.contains("event_details") == true -> "Event Overview"
+        currentRoute?.contains("application") == true -> "Application Details"
         else -> "Admin Portal"
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(currentTitle) },
-                navigationIcon = {
-                    // Show Back Arrow ONLY if NOT on a Top Level screen
-                    if (currentRoute !in topLevelRoutes) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            // Improved TopAppBar: bold title, clearer wording, better spacing
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = currentTitle,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    },
+                    navigationIcon = {
+                        if (currentRoute !in topLevelRoutes) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Go Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
-                    }
-                },
-                actions = {
-                    // LOGOUT BUTTON
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    },
+                    actions = {
+                        // Logout opens confirmation dialog
+                        IconButton(onClick = { showLogoutDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
                 )
-            )
+                // subtle divider for structure
+                Divider(color = MaterialTheme.colorScheme.outline)
+            }
         },
         bottomBar = {
             // Only show Bottom Bar on top-level screens
@@ -89,7 +112,10 @@ fun AdminNavGraph(
                     currentRoute = currentRoute,
                     onNavigate = { route ->
                         navController.navigate(route) {
-                            popUpTo(AdminScreen.Dashboard.route) { saveState = true }
+                            // pop up to the real start destination (robust)
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
                             launchSingleTop = true
                             restoreState = true
                         }
@@ -98,6 +124,28 @@ fun AdminNavGraph(
             }
         }
     ) { innerPadding ->
+        // Logout confirmation dialog (Material3 AlertDialog)
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Confirm Logout") },
+                text = { Text("Are you sure you want to log out?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }) {
+                        Text("Logout")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         NavHost(
             navController = navController,
             startDestination = AdminScreen.Dashboard.route,
@@ -117,12 +165,8 @@ fun AdminNavGraph(
             // 2. All Clubs (Management)
             composable(AdminScreen.AllClubs.route) {
                 ClubManagementScreen(
-                    onClubClick = { clubId ->
-                        navController.navigate(AdminScreen.clubDetails(clubId))
-                    },
-                    onApplicationClick = { appId ->
-                        navController.navigate(AdminScreen.clubApplicationDetails(appId))
-                    }
+                    onClubClick = { clubId -> navController.navigate(AdminScreen.clubDetails(clubId)) },
+                    onApplicationClick = { appId -> navController.navigate(AdminScreen.clubApplicationDetails(appId)) }
                 )
             }
 
@@ -146,11 +190,7 @@ fun AdminNavGraph(
 
             // 5. All Users
             composable(AdminScreen.AllUsers.route) {
-                AllUsersScreen(
-                    onUserClick = { userId ->
-                        navController.navigate(AdminScreen.userDetails(userId))
-                    }
-                )
+                AllUsersScreen(onUserClick = { userId -> navController.navigate(AdminScreen.userDetails(userId)) })
             }
 
             // 6. User Details
@@ -163,11 +203,7 @@ fun AdminNavGraph(
 
             // 7. All Events
             composable(AdminScreen.AllEvents.route) {
-                AllEventsScreen(
-                    onEventClick = { eventId ->
-                        navController.navigate(AdminScreen.eventDetails(eventId))
-                    }
-                )
+                AllEventsScreen(onEventClick = { eventId -> navController.navigate(AdminScreen.eventDetails(eventId)) })
             }
 
             // 8. Event Details

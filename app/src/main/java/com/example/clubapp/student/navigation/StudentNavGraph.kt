@@ -1,11 +1,16 @@
 package com.example.clubapp.student.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,7 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.clubapp.model.User // Import User model
+import com.example.clubapp.model.User
 import com.example.clubapp.student.data.StudentRepository
 import com.example.clubapp.student.ui.*
 
@@ -21,10 +26,13 @@ import com.example.clubapp.student.ui.*
 @Composable
 fun StudentNavGraph(
     studentRepository: StudentRepository,
-    onLogout: () -> Unit,           // <--- ADDED: Logout Action
-    onSwitchToLeader: () -> Unit    // <--- ADDED: Switch Action
+    onLogout: () -> Unit,           // Parent callback to handle sign out
+    onSwitchToLeader: () -> Unit    // Parent callback to switch NavHost
 ) {
     val navController = rememberNavController()
+
+    // Dialog state
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     // 1. Check if User is a Leader (To show the Star button)
     val userState = produceState<User?>(initialValue = null) {
@@ -58,37 +66,58 @@ fun StudentNavGraph(
         else -> "Student Portal"
     }
 
+    // Set up scroll behavior for the TopAppBar
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(currentTitle) },
-                navigationIcon = {
-                    if (currentRoute !in topLevelRoutes) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            // Unify TopAppBar structure with AdminNavGraph
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = currentTitle,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    },
+                    navigationIcon = {
+                        if (currentRoute !in topLevelRoutes) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Go Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
-                    }
-                },
-                actions = {
-                    // --- THE THINGS THAT MATTER ---
-
-                    // 1. Switch Button (Only for Leaders)
-                    if (isClubLeader) {
-                        IconButton(onClick = onSwitchToLeader) {
-                            Icon(Icons.Default.Star, contentDescription = "Switch to Leader View")
+                    },
+                    actions = {
+                        // 1. Switch Button (Conditional)
+                        if (isClubLeader) {
+                            IconButton(onClick = onSwitchToLeader) {
+                                Icon(Icons.Default.Star, contentDescription = "Switch to Leader View", tint = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
-                    }
 
-                    // 2. Logout Button (Always visible)
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        // 2. Logout Button (Opens Dialog)
+                        IconButton(onClick = { showLogoutDialog = true }) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout", tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                    },
+                    // --- COLOR FIX: Using default surface/background for a cleaner look ---
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface, // Clean background
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    scrollBehavior = scrollBehavior
                 )
-            )
+                // Subtle divider for structure
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
         },
         bottomBar = {
             StudentBottomNavigation(
@@ -105,6 +134,29 @@ fun StudentNavGraph(
             )
         }
     ) { innerPadding ->
+
+        // --- LOGOUT CONFIRMATION DIALOG ---
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Confirm Logout") },
+                text = { Text("Are you sure you want to log out?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showLogoutDialog = false
+                        onLogout() // Executes the action passed from AppNavGraph
+                    }) {
+                        Text("Logout")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         NavHost(
             navController = navController,
             startDestination = StudentScreen.Dashboard.route,
@@ -119,8 +171,6 @@ fun StudentNavGraph(
                     onBrowseEvents = { navController.navigate(StudentScreen.BrowseEvents.route) },
                     onMyEvents = { navController.navigate(StudentScreen.MyEvents.route) },
                     onCreateClub = { navController.navigate(StudentScreen.CreateClubRequest.route) },
-
-                    // Pass the switch action to the Dashboard too!
                     onManageClub = onSwitchToLeader
                 )
             }
@@ -140,7 +190,7 @@ fun StudentNavGraph(
                 )
             }
 
-            composable(StudentScreen.ClubDetails.route,
+            composable(StudentScreen.ClubDetails.route, 
                 arguments = listOf(navArgument("clubId") { type = NavType.StringType })) {
                 StudentClubDetailsScreen(
                     studentRepository = studentRepository,
@@ -163,7 +213,7 @@ fun StudentNavGraph(
                 )
             }
 
-            composable(StudentScreen.EventDetails.route,
+            composable(StudentScreen.EventDetails.route, 
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })) {
                 StudentEventDetailsScreen(
                     studentRepository = studentRepository,

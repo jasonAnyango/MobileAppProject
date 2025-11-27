@@ -34,6 +34,7 @@ data class User(
     var fullName: String = "",
     var email: String = "",
     var role: String = "Student",
+    var studentId: String = "",
     var clubsJoined: List<String> = emptyList(),
     @get:PropertyName("isSuspended") var isSuspended: Boolean = false,
     @get:PropertyName("isClubLeader") var isClubLeader: Boolean = false

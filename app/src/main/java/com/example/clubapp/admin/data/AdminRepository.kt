@@ -14,7 +14,6 @@ class AdminRepository(private val db: FirebaseFirestore) {
     suspend fun getAllClubs(): List<Club> {
         return try {
             val snapshot = db.collection("clubs").get().await()
-            // Using copy() ensures we get the ID safely even if using val/var
             snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Club::class.java)?.apply { id = doc.id }
             }
@@ -24,7 +23,6 @@ class AdminRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    // --- ADDED THIS FUNCTION FOR THE UI BUTTON ---
     suspend fun toggleClubStatus(clubId: String, isActive: Boolean) {
         try {
             db.collection("clubs").document(clubId)
@@ -53,14 +51,13 @@ class AdminRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    // --- LOGIC UNCOMMENTED AND ENABLED ---
     suspend fun approveApplication(app: ClubRegistration) {
         try {
             // A. Mark request as Approved
             db.collection("club_requests").document(app.id)
                 .update("status", "Approved").await()
 
-            // B. Create Real Club in 'clubs' collection
+            // B. Create Real Club
             val newClubRef = db.collection("clubs").document()
             val newClub = Club(
                 id = newClubRef.id,
@@ -68,13 +65,13 @@ class AdminRepository(private val db: FirebaseFirestore) {
                 description = app.description,
                 mission = app.mission,
                 leaderId = app.applicantId,
-                memberIds = listOf(app.applicantId), // Leader is first member
-                officers = mapOf(app.applicantId to "Chairperson"), // Default role
+                memberIds = listOf(app.applicantId),
+                officers = mapOf(app.applicantId to "Chairperson"),
                 isActive = true
             )
             newClubRef.set(newClub).await()
 
-            // C. Promote User to Club Lead
+            // C. Promote User
             db.collection("users").document(app.applicantId).update(
                 mapOf(
                     "role" to "Club Lead",
@@ -175,6 +172,84 @@ class AdminRepository(private val db: FirebaseFirestore) {
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
+        }
+    }
+
+    suspend fun getUpcomingEvents(): List<Event> {
+        return try {
+            val allEvents = getAllEvents()
+
+            // Sort events using the 'date' string (assuming YYYY-MM-DD format for correct sorting).
+            // Then take the top 3 for the dashboard preview.
+            val sortedEvents = allEvents.sortedBy { it.date }
+
+            return sortedEvents.take(3)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    // ==========================================
+    // 6. REPORTING & ANALYTICS (NEW)
+    // ==========================================
+
+    // Data class to hold the report summary
+    data class DashboardStats(
+        val totalStudents: Int,
+        val totalClubs: Int,
+        val totalEvents: Int,
+        val activeClubs: Int,
+        val inactiveClubs: Int,
+        val topClubs: List<Club>
+    )
+
+    // Calculate stats on the fly
+    suspend fun getDashboardStats(): DashboardStats {
+        return try {
+            val users = getAllUsers()
+            val clubs = getAllClubs()
+            val events = getAllEvents()
+
+            // Sort clubs by number of members to find the "Top 5"
+            val sortedClubs = clubs.sortedByDescending { it.memberIds.size }.take(5)
+
+            DashboardStats(
+                totalStudents = users.size,
+                totalClubs = clubs.size,
+                totalEvents = events.size,
+                activeClubs = clubs.count { it.isActive },
+                inactiveClubs = clubs.count { !it.isActive },
+                topClubs = sortedClubs
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Return zeroed out stats if it fails
+            DashboardStats(0, 0, 0, 0, 0, emptyList())
+        }
+    }
+
+    // Generate a simple CSV string for export
+    suspend fun generateCsvExport(): String {
+        return try {
+            val clubs = getAllClubs()
+            val sb = StringBuilder()
+
+            // CSV Header
+            sb.append("Club Name,Leader ID,Members Count,Status,Mission\n")
+
+            // CSV Rows
+            clubs.forEach { club ->
+                // Escape commas in text fields to prevent breaking the CSV format
+                val safeName = club.name.replace(",", " ")
+                val safeMission = club.mission.replace(",", " ")
+                val status = if(club.isActive) "Active" else "Inactive"
+
+                sb.append("$safeName,${club.leaderId},${club.memberIds.size},$status,$safeMission\n")
+            }
+            sb.toString()
+        } catch (e: Exception) {
+            "Error generating report"
         }
     }
 }
